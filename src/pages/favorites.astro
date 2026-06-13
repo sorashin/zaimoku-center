@@ -1,0 +1,54 @@
+---
+import Base from '@/layouts/Base.astro';
+import { getData } from '@/lib/server/data';
+import { getSession } from '@/lib/server/session';
+import { toCardView } from '@/lib/listingView';
+import { ListingCard } from '@/components/listing/ListingCard';
+
+const data = getData(Astro.locals.runtime?.env);
+const session = await getSession(Astro);
+
+// 未ログインは /login へ（戻り先付き）
+if (!session.user) {
+  return Astro.redirect('/login?redirect=/favorites');
+}
+
+const favorites = await data.getFavoriteListings(session.user.id);
+const items = favorites.map(toCardView);
+const savedIds = items.map((i) => i.id);
+---
+
+<Base title="お気に入り">
+  <div class="mx-auto max-w-[1120px] px-4 py-6 md:px-6">
+    <h1 class="text-[21px] font-semibold">お気に入り</h1>
+
+    {
+      items.length === 0 ? (
+        <div class="mt-10 rounded-card border border-hairline bg-surface p-10 text-center">
+          <p class="m-0 text-[15px] font-medium text-ink">まだお気に入りはありません。</p>
+          <p class="mt-2 text-[14px] text-ink-sub">
+            気になる材のハートを押すと、ここにまとまります。
+          </p>
+          <a
+            href="/"
+            class="mt-5 inline-block rounded-btn bg-primary px-5 py-3 text-[14px] font-bold text-ink no-underline transition-colors hover:bg-primary-active"
+          >
+            在庫を探す
+          </a>
+        </div>
+      ) : (
+        <div class="mt-5 grid grid-cols-1 gap-x-5 gap-y-8 pb-16 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((item, i) => (
+            <ListingCard
+              item={item}
+              index={i}
+              initialSaved={savedIds.includes(item.id)}
+              loggedIn={true}
+              client:load
+            />
+          ))}
+        </div>
+      )
+    }
+  </div>
+</Base>

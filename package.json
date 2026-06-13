@@ -1,0 +1,45 @@
+{
+  "name": "zaimoku-center",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "astro": "astro",
+    "seed:images": "node scripts/generate-seed-images.mjs",
+    "seed:posters": "node scripts/generate-model-posters.mjs",
+    "seed:photos": "node scripts/upload-listing-photos.mjs",
+    "seed:supabase": "node scripts/seed-supabase.mjs",
+    "deploy": "astro build && wrangler pages deploy dist --project-name zaimoku-center"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "^12.6.13",
+    "@astrojs/react": "^4.4.2",
+    "@mkkellogg/gaussian-splats-3d": "^0.4.7",
+    "@supabase/ssr": "^0.12.0",
+    "@supabase/supabase-js": "^2.108.1",
+    "@tailwindcss/vite": "^4.3.1",
+    "astro": "^5.18.2",
+    "aws4fetch": "^1.0.20",
+    "maplibre-gl": "^5.24.0",
+    "nanoid": "^5.1.11",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tailwindcss": "^4.3.1",
+    "three": "^0.184.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.4",
+    "@types/node": "^25.9.3",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/three": "^0.184.1",
+    "puppeteer": "^25.1.0",
+    "sharp": "^0.35.1",
+    "typescript": "^5.7.3"
+  },
+  "packageManager": "yarn@4.4.1"
+}

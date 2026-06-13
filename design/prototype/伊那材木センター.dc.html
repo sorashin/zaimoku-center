@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body { margin: 0; background: #f2f2f2; -webkit-font-smoothing: antialiased; }
+    [data-nosb] { scrollbar-width: none; }
+    [data-nosb]::-webkit-scrollbar { display: none; }
+    @keyframes sheetUp { from { transform: translate(-50%, 100%); } to { transform: translate(-50%, 0); } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes spinDisc { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    input::placeholder, textarea::placeholder { color: #929292; }
+  </style>
+  <script src="image-slot.js"></script>
+</helmet>
+
+<div style="min-height:100vh;background:#f2f2f2;display:flex;justify-content:center;font-family:'Noto Sans JP',-apple-system,system-ui,sans-serif;color:#222222">
+  <div style="width:100%;max-width:430px;background:#ffffff;min-height:100vh;position:relative;box-shadow:0 0 32px rgba(0,0,0,0.08)">
+
+    <!-- ============ 一覧画面（エンドユーザー） ============ -->
+    <sc-if value="{{ isList }}" hint-placeholder-val="{{ true }}">
+      <section data-screen-label="一覧画面">
+
+        <header style="position:sticky;top:0;z-index:20;background:#ffffff;padding:14px 16px 0;border-bottom:1px solid #ebebeb">
+          <div style="display:flex;align-items:center;gap:10px">
+            <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><circle cx="15" cy="15" r="13" fill="#c8a26d"></circle><circle cx="15" cy="15" r="9" fill="none" stroke="#a87f4c" stroke-width="1.6"></circle><circle cx="15" cy="15" r="5" fill="none" stroke="#a87f4c" stroke-width="1.4"></circle><circle cx="15" cy="15" r="1.8" fill="#8a6437"></circle></svg>
+            <div style="font-size:18px;font-weight:700;letter-spacing:0.01em">伊那材木センター</div>
+            <button onClick="{{ goUpload }}" style="margin-left:auto;display:flex;align-items:center;gap:6px;background:#ffffff;border:1px solid #222222;border-radius:9999px;padding:9px 14px;font-size:13px;font-weight:600;color:#222222;cursor:pointer;font-family:inherit" style-active="background:#f7f7f7">出品する</button>
+          </div>
+
+          <div style="margin-top:12px;display:flex;align-items:center;gap:10px;border:1px solid #dddddd;border-radius:9999px;padding:13px 18px;box-shadow:rgba(0,0,0,0.02) 0 0 0 1px, rgba(0,0,0,0.04) 0 2px 6px 0, rgba(0,0,0,0.08) 0 4px 8px 0;cursor:pointer">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="5.2" stroke="#222222" stroke-width="1.8"></circle><path d="M11 11L14.5 14.5" stroke="#222222" stroke-width="1.8" stroke-linecap="round"></path></svg>
+            <span style="font-size:14px;font-weight:500;color:#6a6a6a">樹種やサイズで検索</span>
+          </div>
+
+          <div data-nosb style="display:flex;gap:8px;overflow-x:auto;padding:12px 0 14px">
+            <button onClick="{{ toggleSort }}" style="display:flex;align-items:center;gap:6px;padding:10px 16px;border-radius:9999px;font-size:14px;font-weight:500;white-space:nowrap;cursor:pointer;font-family:inherit;background:{{ chipSortBg }};color:{{ chipSortColor }};border:1px solid {{ chipSortBorder }}">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M4 2.5V11.5M4 11.5L1.8 9.3M4 11.5L6.2 9.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path><path d="M10 11.5V2.5M10 2.5L7.8 4.7M10 2.5L12.2 4.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              価格安順
+            </button>
+            <button onClick="{{ toggleSawn }}" style="padding:10px 16px;border-radius:9999px;font-size:14px;font-weight:500;white-space:nowrap;cursor:pointer;font-family:inherit;background:{{ chipSawnBg }};color:{{ chipSawnColor }};border:1px solid {{ chipSawnBorder }}">製材済み</button>
+            <button onClick="{{ toggleIrr }}" style="padding:10px 16px;border-radius:9999px;font-size:14px;font-weight:500;white-space:nowrap;cursor:pointer;font-family:inherit;background:{{ chipIrrBg }};color:{{ chipIrrColor }};border:1px solid {{ chipIrrBorder }}">不定形材</button>
+          </div>
+        </header>
+
+        <div style="padding:20px 16px 110px;display:flex;flex-direction:column;gap:30px">
+          <sc-for list="{{ listItems }}" as="item" hint-placeholder-count="4">
+            <article onClick="{{ item.open }}" style="cursor:pointer">
+              <div style="position:relative">
+                <image-slot id="{{ item.slotId }}" shape="rounded" radius="14" placeholder="{{ item.ph }}" style="width:100%;aspect-ratio:1;display:block"></image-slot>
+                <button onClick="{{ item.onHeart }}" aria-label="保存" style="position:absolute;top:6px;right:6px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;cursor:pointer;padding:0">
+                  <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21C12 21 3.5 15.5 3.5 9.5C3.5 6.5 5.8 4.5 8.3 4.5C10 4.5 11.4 5.5 12 6.6C12.6 5.5 14 4.5 15.7 4.5C18.2 4.5 20.5 6.5 20.5 9.5C20.5 15.5 12 21 12 21Z" fill="{{ item.heartFill }}" stroke="{{ item.heartStroke }}" stroke-width="1.8"></path></svg>
+                </button>
+                <sc-if value="{{ item.has3d }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute;bottom:14px;right:14px;width:38px;height:38px;border-radius:9999px;border:1.5px solid #ffffff;display:flex;align-items:center;justify-content:center;color:#ffffff;font-size:11px;font-weight:700;background:rgba(0,0,0,0.25)">3D</div>
+                </sc-if>
+              </div>
+              <div style="margin-top:12px">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span style="font-size:17px;font-weight:600">{{ item.title }}</span>
+                  <sc-if value="{{ item.isSawn }}" hint-placeholder-val="{{ true }}">
+                    <span style="font-size:13px;color:#6a6a6a;white-space:nowrap;flex-shrink:0">在庫 <span style="font-size:16px;font-weight:600;color:#222222">{{ item.stock }}</span> 本</span>
+                  </sc-if>
+                  <span style="margin-left:auto;display:flex;align-items:center;gap:6px">
+                    <span style="width:26px;height:26px;border-radius:9999px;background:#2f4a2e;color:#ffffff;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1">盛木</span>
+                    <span style="font-size:13px;font-weight:500">盛木材</span>
+                  </span>
+                </div>
+                <div style="margin-top:4px;font-size:13px;color:#6a6a6a">{{ item.subLabel }}</div>
+                <div style="margin-top:6px;font-size:18px;font-weight:600">{{ item.priceLabel }}<span style="font-size:13px;font-weight:400;color:#6a6a6a">{{ item.unit }}</span></div>
+                <div style="margin-top:4px;font-size:13px;color:#929292">{{ item.posted }}</div>
+              </div>
+            </article>
+          </sc-for>
+        </div>
+
+        <sc-if value="{{ mapClosed }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ openMap }}" style="position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:40;display:flex;align-items:center;gap:8px;background:#222222;color:#ffffff;border:none;border-radius:9999px;padding:14px 20px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;box-shadow:rgba(0,0,0,0.2) 0 4px 12px 0">
+            マップ
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M1.5 4L6 2L10 4L14.5 2V12L10 14L6 12L1.5 14V4Z" stroke="#ffffff" stroke-width="1.4" stroke-linejoin="round"></path><path d="M6 2V12M10 4V14" stroke="#ffffff" stroke-width="1.4"></path></svg>
+          </button>
+        </sc-if>
+
+        <sc-if value="{{ mapOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="position:fixed;top:0;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;z-index:50;background:#e8eedd;overflow:hidden;animation:fadeIn 0.25s ease">
+            <div style="position:absolute;top:14%;left:-10%;width:130%;height:4px;background:#ffffff;transform:rotate(18deg);border-radius:2px"></div>
+            <div style="position:absolute;top:46%;left:-15%;width:140%;height:5px;background:#ffffff;transform:rotate(-8deg);border-radius:3px"></div>
+            <div style="position:absolute;top:74%;left:-10%;width:130%;height:3px;background:#ffffff;transform:rotate(12deg);border-radius:2px"></div>
+            <div style="position:absolute;top:0;right:8%;width:7px;height:120%;background:#c7dbe8;transform:rotate(14deg);border-radius:4px"></div>
+            <div style="position:absolute;top:21%;left:14%;font-size:11px;color:#7d8f6f">辰野町</div>
+            <div style="position:absolute;top:52%;left:62%;font-size:11px;color:#7d8f6f">駒ヶ根市</div>
+            <div style="position:absolute;top:80%;left:22%;font-size:11px;color:#7d8f6f">飯田市</div>
+            <div style="position:absolute;top:34%;left:40%;font-size:11px;color:#7d8f6f">伊那市</div>
+            <sc-for list="{{ items }}" as="item" hint-placeholder-count="4">
+              <button onClick="{{ item.open }}" style="position:absolute;top:{{ item.pinTop }};left:{{ item.pinLeft }};transform:translate(-50%,-50%);display:flex;align-items:center;gap:7px;background:#ffffff;border:none;border-radius:9999px;padding:5px 13px 5px 5px;cursor:pointer;font-family:inherit;box-shadow:rgba(0,0,0,0.18) 0 2px 8px 0">
+                <span style="width:26px;height:26px;border-radius:9999px;background:linear-gradient(135deg,#d8b98e,#b98e5d);display:block"></span>
+                <span style="font-size:13px;font-weight:600;color:#222222;white-space:nowrap">{{ item.pinLabel }}</span>
+              </button>
+            </sc-for>
+            <button onClick="{{ closeMap }}" style="position:absolute;bottom:26px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;background:#222222;color:#ffffff;border:none;border-radius:9999px;padding:14px 20px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;box-shadow:rgba(0,0,0,0.2) 0 4px 12px 0">
+              リスト
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M1 3H13M1 7H13M1 11H13" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"></path></svg>
+            </button>
+          </div>
+        </sc-if>
+      </section>
+    </sc-if>
+
+    <!-- ============ 詳細画面（エンドユーザー） ============ -->
+    <sc-if value="{{ isDetail }}" hint-placeholder-val="{{ false }}">
+      <section data-screen-label="詳細画面">
+
+        <div style="position:relative">
+          <div data-nosb style="display:flex;overflow-x:auto;scroll-snap-type:x mandatory">
+            <sc-for list="{{ gallery }}" as="g" hint-placeholder-count="3">
+              <image-slot id="{{ g.sid }}" shape="rect" placeholder="{{ g.ph }}" style="flex:0 0 100%;width:100%;aspect-ratio:4/3;display:block;scroll-snap-align:start"></image-slot>
+            </sc-for>
+          </div>
+          <button onClick="{{ goList }}" aria-label="戻る" style="position:absolute;top:14px;left:14px;width:38px;height:38px;border-radius:9999px;background:#ffffff;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:rgba(0,0,0,0.15) 0 2px 6px 0">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 2.5L4.5 8L10 13.5" stroke="#222222" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          </button>
+          <button onClick="{{ detailHeart }}" aria-label="保存" style="position:absolute;top:14px;right:14px;width:38px;height:38px;border-radius:9999px;background:#ffffff;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:rgba(0,0,0,0.15) 0 2px 6px 0">
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21C12 21 3.5 15.5 3.5 9.5C3.5 6.5 5.8 4.5 8.3 4.5C10 4.5 11.4 5.5 12 6.6C12.6 5.5 14 4.5 15.7 4.5C18.2 4.5 20.5 6.5 20.5 9.5C20.5 15.5 12 21 12 21Z" fill="{{ dHeartFill }}" stroke="{{ dHeartStroke }}" stroke-width="1.8"></path></svg>
+          </button>
+          <div style="position:absolute;bottom:12px;right:12px;background:rgba(0,0,0,0.55);color:#ffffff;font-size:12px;font-weight:500;border-radius:9999px;padding:5px 11px">写真 3枚</div>
+        </div>
+
+        <div style="padding:20px 16px 8px">
+          <h1 style="margin:0;font-size:21px;font-weight:600;line-height:1.3">{{ dTitle }}</h1>
+          <div style="margin-top:8px;display:flex;align-items:center;gap:10px">
+            <span style="background:#f2f2f2;border-radius:9999px;padding:5px 12px;font-size:12px;font-weight:600">{{ dShapeLabel }}</span>
+            <span style="font-size:13px;color:#6a6a6a">長野県伊那市 ・ {{ dPosted }}出品</span>
+          </div>
+        </div>
+
+        <div style="margin:18px 16px 0;border-top:1px solid #ebebeb;padding-top:22px">
+          <h2 style="margin:0;font-size:18px;font-weight:600">3Dスキャン</h2>
+          <p style="margin:6px 0 0;font-size:13px;color:#6a6a6a">写真測量で生成された3Dモデルです。実際の木目・形状を確認できます。</p>
+          <div style="margin-top:14px;position:relative;background:#f7f7f7;border-radius:14px;height:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;overflow:hidden">
+            <div style="width:120px;height:120px;border-radius:9999px;background:repeating-radial-gradient(circle at 46% 46%, #dcc09a 0 7px, #c8a26d 7px 15px, #b98e5d 15px 16px);animation:spinDisc 14s linear infinite;box-shadow:rgba(0,0,0,0.12) 0 6px 16px 0"></div>
+            <div style="font-size:13px;font-weight:500;color:#6a6a6a">ドラッグで回転 ・ ピンチで拡大</div>
+            <div style="position:absolute;bottom:14px;right:14px;width:38px;height:38px;border-radius:9999px;border:1.5px solid #222222;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#222222;background:#ffffff">3D</div>
+          </div>
+        </div>
+
+        <div style="margin:24px 16px 0;border-top:1px solid #ebebeb;padding-top:22px">
+          <h2 style="margin:0 0 4px;font-size:18px;font-weight:600">商品情報</h2>
+          <sc-for list="{{ specRows }}" as="row" hint-placeholder-count="5">
+            <div style="display:flex;justify-content:space-between;gap:16px;padding:14px 0;border-bottom:1px solid #ebebeb">
+              <span style="font-size:14px;color:#6a6a6a">{{ row.k }}</span>
+              <span style="font-size:14px;font-weight:500;text-align:right">{{ row.v }}</span>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="margin:24px 16px 0">
+          <div style="display:flex;align-items:center;gap:14px;border:1px solid #dddddd;border-radius:14px;padding:16px">
+            <span style="width:48px;height:48px;border-radius:9999px;background:#2f4a2e;color:#ffffff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">盛木</span>
+            <span style="display:flex;flex-direction:column;gap:2px">
+              <span style="font-size:16px;font-weight:600">盛木材（モリモク）</span>
+              <span style="font-size:13px;color:#6a6a6a">長野県伊那市の製材所</span>
+            </span>
+          </div>
+        </div>
+
+        <div style="margin:24px 16px 0;border-top:1px solid #ebebeb;padding-top:22px;padding-bottom:28px">
+          <h2 style="margin:0;font-size:18px;font-weight:600">所在地</h2>
+          <div style="margin-top:14px;position:relative;height:190px;border-radius:14px;overflow:hidden;background:#e8eedd">
+            <div style="position:absolute;top:24%;left:-10%;width:130%;height:4px;background:#ffffff;transform:rotate(10deg);border-radius:2px"></div>
+            <div style="position:absolute;top:64%;left:-10%;width:130%;height:3px;background:#ffffff;transform:rotate(-14deg);border-radius:2px"></div>
+            <div style="position:absolute;top:0;right:16%;width:6px;height:130%;background:#c7dbe8;transform:rotate(10deg)"></div>
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:96px;height:96px;border-radius:9999px;background:rgba(47,74,46,0.16);border:2px solid rgba(47,74,46,0.4)"></div>
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:14px;height:14px;border-radius:9999px;background:#2f4a2e;border:3px solid #ffffff;box-shadow:rgba(0,0,0,0.2) 0 1px 4px 0"></div>
+          </div>
+          <p style="margin:10px 0 0;font-size:13px;color:#6a6a6a">長野県伊那市 ー 正確な引き渡し場所は取引確定後に共有されます。</p>
+        </div>
+
+        <div style="position:sticky;bottom:0;z-index:15;background:#ffffff;border-top:1px solid #ebebeb;padding:14px 16px;display:flex;align-items:center;gap:14px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:18px;font-weight:700">{{ dPriceLabel }}<span style="font-size:13px;font-weight:400;color:#6a6a6a">{{ dUnit }}</span></div>
+            <div style="margin-top:2px;font-size:12px;color:#6a6a6a">{{ dStockLine }}</div>
+          </div>
+          <button onClick="{{ openSheet }}" style="background:#ff385c;color:#ffffff;border:none;border-radius:8px;padding:14px 22px;font-size:16px;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap" style-active="background:#e00b41">購入リクエスト</button>
+        </div>
+
+        <sc-if value="{{ sheetOpen }}" hint-placeholder-val="{{ false }}">
+          <div onClick="{{ closeSheet }}" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:70;animation:fadeIn 0.2s ease"></div>
+          <div style="position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:#ffffff;border-radius:20px 20px 0 0;z-index:71;padding:22px 20px 30px;box-sizing:border-box;animation:sheetUp 0.3s ease">
+            <sc-if value="{{ sheetForm }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <span style="font-size:18px;font-weight:600">購入リクエスト</span>
+                <button onClick="{{ closeSheet }}" aria-label="閉じる" style="width:36px;height:36px;border-radius:9999px;background:#f2f2f2;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center">
+                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true"><path d="M1.5 1.5L11.5 11.5M11.5 1.5L1.5 11.5" stroke="#222222" stroke-width="1.8" stroke-linecap="round"></path></svg>
+                </button>
+              </div>
+              <div style="margin-top:14px;display:flex;align-items:center;gap:10px;padding-bottom:18px;border-bottom:1px solid #ebebeb">
+                <span style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#d8b98e,#b98e5d);display:block;flex-shrink:0"></span>
+                <span style="display:flex;flex-direction:column;gap:1px">
+                  <span style="font-size:15px;font-weight:600">{{ dTitle }}</span>
+                  <span style="font-size:13px;color:#6a6a6a">{{ dPriceLabel }}{{ dUnit }} ・ 盛木材</span>
+                </span>
+              </div>
+              <sc-if value="{{ dIsSawn }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 0">
+                  <span style="font-size:15px;font-weight:500">数量（本）</span>
+                  <span style="display:flex;align-items:center;gap:4px">
+                    <button onClick="{{ qtyDec }}" aria-label="減らす" style="width:40px;height:40px;border-radius:9999px;border:1px solid #c1c1c1;background:#ffffff;cursor:pointer;font-size:18px;color:#222222;font-family:inherit;opacity:{{ minusOpacity }}">−</button>
+                    <span style="width:44px;text-align:center;font-size:17px;font-weight:600">{{ qty }}</span>
+                    <button onClick="{{ qtyInc }}" aria-label="増やす" style="width:40px;height:40px;border-radius:9999px;border:1px solid #c1c1c1;background:#ffffff;cursor:pointer;font-size:18px;color:#222222;font-family:inherit;opacity:{{ plusOpacity }}">＋</button>
+                  </span>
+                </div>
+                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#6a6a6a">
+                  <span>材積</span><span>{{ volLine }}</span>
+                </div>
+              </sc-if>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;padding:10px 0 4px">
+                <span style="font-size:15px;font-weight:500">概算金額</span>
+                <span style="font-size:20px;font-weight:700">{{ totalLabel }}</span>
+              </div>
+              <p style="margin:10px 0 0;font-size:12px;color:#6a6a6a;line-height:1.6">送信時点では支払いは発生しません。盛木材が在庫と引き渡し方法を確認のうえ、正式な金額を返信します。</p>
+              <button onClick="{{ sendRequest }}" style="margin-top:18px;width:100%;height:50px;background:#ff385c;color:#ffffff;border:none;border-radius:8px;font-size:16px;font-weight:600;font-family:inherit;cursor:pointer" style-active="background:#e00b41">リクエストを送信</button>
+            </sc-if>
+            <sc-if value="{{ sheetSent }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:18px 8px 4px">
+                <span style="width:56px;height:56px;border-radius:9999px;background:#ff385c;display:flex;align-items:center;justify-content:center">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4.5 12.5L9.5 17.5L19.5 7" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                </span>
+                <span style="margin-top:16px;font-size:18px;font-weight:600">リクエストを送信しました</span>
+                <span style="margin-top:8px;font-size:14px;color:#6a6a6a;line-height:1.6">盛木材から1〜2営業日以内に<br />返信があります。</span>
+                <button onClick="{{ closeSheet }}" style="margin-top:22px;width:100%;height:50px;background:#ffffff;color:#222222;border:1px solid #222222;border-radius:8px;font-size:16px;font-weight:600;font-family:inherit;cursor:pointer" style-active="background:#f7f7f7">閉じる</button>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+      </section>
+    </sc-if>
+
+    <!-- ============ アップロード画面（材木屋側） ============ -->
+    <sc-if value="{{ isUpload }}" hint-placeholder-val="{{ false }}">
+      <section data-screen-label="アップロード画面">
+
+        <header style="position:sticky;top:0;z-index:20;background:#ffffff;border-bottom:1px solid #ebebeb;padding:12px 16px;display:flex;align-items:center;gap:12px">
+          <button onClick="{{ goList }}" aria-label="戻る" style="width:38px;height:38px;border-radius:9999px;background:#f2f2f2;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 2.5L4.5 8L10 13.5" stroke="#222222" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          </button>
+          <span style="font-size:18px;font-weight:600">商品を出品</span>
+          <span style="margin-left:auto;display:flex;align-items:center;gap:6px">
+            <span style="width:26px;height:26px;border-radius:9999px;background:#2f4a2e;color:#ffffff;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center">盛木</span>
+            <span style="font-size:13px;font-weight:500">盛木材</span>
+          </span>
+        </header>
+
+        <sc-if value="{{ uploadFormVisible }}" hint-placeholder-val="{{ true }}">
+          <div style="padding:24px 16px 48px">
+
+            <h2 style="margin:0;font-size:18px;font-weight:600">スキャンデータ（写真測量）</h2>
+            <p style="margin:6px 0 0;font-size:13px;color:#6a6a6a;line-height:1.6">商品の周りを一周しながら撮影した写真をアップロードしてください（8枚以上推奨）。写真から3Dモデルを自動生成します。</p>
+            <div style="margin-top:14px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+              <image-slot id="scan-1" shape="rounded" radius="10" placeholder="写真 1" style="width:100%;min-width:0;aspect-ratio:1;display:block"></image-slot>
+              <image-slot id="scan-2" shape="rounded" radius="10" placeholder="写真 2" style="width:100%;min-width:0;aspect-ratio:1;display:block"></image-slot>
+              <image-slot id="scan-3" shape="rounded" radius="10" placeholder="写真 3" style="width:100%;min-width:0;aspect-ratio:1;display:block"></image-slot>
+              <image-slot id="scan-4" shape="rounded" radius="10" placeholder="写真 4" style="width:100%;min-width:0;aspect-ratio:1;display:block"></image-slot>
+              <image-slot id="scan-5" shape="rounded" radius="10" placeholder="写真 5" style="width:100%;min-width:0;aspect-ratio:1;display:block"></image-slot>
+              <image-slot id="scan-6" shape="rounded" radius="10" placeholder="＋ 追加" style="width:100%;min-width:0;aspect-ratio:1;display:block"></image-slot>
+            </div>
+            <div style="margin-top:10px;display:inline-flex;align-items:center;gap:8px;background:#f7f7f7;border-radius:9999px;padding:7px 14px">
+              <span style="width:8px;height:8px;border-radius:9999px;background:#2f4a2e;display:block"></span>
+              <span style="font-size:12px;font-weight:500;color:#6a6a6a">アップロード後に3Dモデルが自動生成されます</span>
+            </div>
+
+            <div style="margin:28px 0 0;border-top:1px solid #ebebeb;padding-top:26px">
+              <h2 style="margin:0;font-size:18px;font-weight:600">商品写真</h2>
+              <p style="margin:6px 0 0;font-size:13px;color:#6a6a6a">一覧・詳細ページに表示されるメイン写真です。</p>
+              <div style="margin-top:14px;display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);grid-template-rows:1fr 1fr;gap:8px">
+                <image-slot id="photo-main" shape="rounded" radius="12" placeholder="メイン写真" style="width:100%;min-width:0;height:100%;grid-row:span 2;display:block;min-height:180px"></image-slot>
+                <image-slot id="photo-sub1" shape="rounded" radius="12" placeholder="サブ 1" style="width:100%;min-width:0;height:100%;display:block;min-height:86px"></image-slot>
+                <image-slot id="photo-sub2" shape="rounded" radius="12" placeholder="サブ 2" style="width:100%;min-width:0;height:100%;display:block;min-height:86px"></image-slot>
+              </div>
+            </div>
+
+            <div style="margin:28px 0 0;border-top:1px solid #ebebeb;padding-top:26px">
+              <h2 style="margin:0 0 16px;font-size:18px;font-weight:600">基本情報</h2>
+              <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">商品名</label>
+              <input type="text" value="{{ fName }}" onChange="{{ onName }}" placeholder="例：樺の木（製材済み）" style="width:100%;box-sizing:border-box;height:52px;border:1px solid #dddddd;border-radius:8px;padding:0 14px;font-size:16px;font-family:inherit;color:#222222;background:#ffffff;outline:none" style-focus="border-color:#222222;box-shadow:inset 0 0 0 1px #222222" />
+              <label style="display:block;font-size:13px;font-weight:600;margin:18px 0 6px">樹種</label>
+              <select value="{{ fSpecies }}" onChange="{{ onSpecies }}" style="width:100%;box-sizing:border-box;height:52px;border:1px solid #dddddd;border-radius:8px;padding:0 10px;font-size:16px;font-family:inherit;color:#222222;background:#ffffff;outline:none">
+                <option value="カラマツ">カラマツ</option>
+                <option value="アカマツ">アカマツ</option>
+                <option value="スギ">スギ</option>
+                <option value="ヒノキ">ヒノキ</option>
+                <option value="カバ">カバ</option>
+                <option value="ホオノキ">ホオノキ</option>
+                <option value="クリ">クリ</option>
+                <option value="その他">その他</option>
+              </select>
+              <label style="display:block;font-size:13px;font-weight:600;margin:18px 0 6px">形状</label>
+              <div style="display:flex;gap:8px">
+                <button onClick="{{ setSawn }}" style="flex:1;height:48px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;background:{{ pillSawnBg }};color:{{ pillSawnColor }};border:1px solid {{ pillSawnBorder }}">製材済み</button>
+                <button onClick="{{ setIrr }}" style="flex:1;height:48px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;background:{{ pillIrrBg }};color:{{ pillIrrColor }};border:1px solid {{ pillIrrBorder }}">不定形材（一点物）</button>
+              </div>
+            </div>
+
+            <sc-if value="{{ showDims }}" hint-placeholder-val="{{ true }}">
+              <div style="margin:28px 0 0;border-top:1px solid #ebebeb;padding-top:26px">
+                <h2 style="margin:0 0 16px;font-size:18px;font-weight:600">寸法・在庫</h2>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+                  <span style="display:block">
+                    <label style="display:block;font-size:12px;font-weight:500;color:#6a6a6a;margin-bottom:6px">長手（mm）</label>
+                    <input type="number" inputMode="numeric" value="{{ fLen }}" onChange="{{ onLen }}" placeholder="2000" style="width:100%;box-sizing:border-box;height:52px;border:1px solid #dddddd;border-radius:8px;padding:0 12px;font-size:16px;font-family:inherit;color:#222222;background:#ffffff;outline:none" style-focus="border-color:#222222;box-shadow:inset 0 0 0 1px #222222" />
+                  </span>
+                  <span style="display:block">
+                    <label style="display:block;font-size:12px;font-weight:500;color:#6a6a6a;margin-bottom:6px">短手（mm）</label>
+                    <input type="number" inputMode="numeric" value="{{ fWid }}" onChange="{{ onWid }}" placeholder="180" style="width:100%;box-sizing:border-box;height:52px;border:1px solid #dddddd;border-radius:8px;padding:0 12px;font-size:16px;font-family:inherit;color:#222222;background:#ffffff;outline:none" style-focus="border-color:#222222;box-shadow:inset 0 0 0 1px #222222" />
+                  </span>
+                  <span style="display:block">
+                    <label style="display:block;font-size:12px;font-weight:500;color:#6a6a6a;margin-bottom:6px">厚み（mm）</label>
+                    <input type="number" inputMode="numeric" value="{{ fThk }}" onChange="{{ onThk }}" placeholder="20" style="width:100%;box-sizing:border-box;height:52px;border:1px solid #dddddd;border-radius:8px;padding:0 12px;font-size:16px;font-family:inherit;color:#222222;background:#ffffff;outline:none" style-focus="border-color:#222222;box-shadow:inset 0 0 0 1px #222222" />
+                  </span>
+                </div>
+                <label style="display:block;font-size:12px;font-weight:500;color:#6a6a6a;margin:16px 0 6px">在庫本数</label>
+                <input type="number" inputMode="numeric" value="{{ fStock }}" onChange="{{ onStock }}" placeholder="13" style="width:50%;box-sizing:border-box;height:52px;border:1px solid #dddddd;border-radius:8px;padding:0 12px;font-size:16px;font-family:inherit;color:#222222;background:#ffffff;outline:none" style-focus="border-color:#222222;box-shadow:inset 0 0 0 1px #222222" />
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ showOnePiece }}" hint-placeholder-val="{{ false }}">
+              <div style="margin:20px 0 0;background:#f7f7f7;border-radius:10px;padding:14px 16px;font-size:13px;color:#6a6a6a;line-height:1.6">不定形材は一点物として出品されます。サイズは3Dスキャンから自動計測されます。</div>
+            </sc-if>
+
+            <div style="margin:28px 0 0;border-top:1px solid #ebebeb;padding-top:26px">
+              <h2 style="margin:0 0 16px;font-size:18px;font-weight:600">価格</h2>
+              <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">{{ priceFieldLabel }}</label>
+              <input type="number" inputMode="numeric" value="{{ fPrice }}" onChange="{{ onPrice }}" placeholder="例：20000" style="width:100%;box-sizing:border-box;height:52px;border:1px solid #dddddd;border-radius:8px;padding:0 14px;font-size:16px;font-family:inherit;color:#222222;background:#ffffff;outline:none" style-focus="border-color:#222222;box-shadow:inset 0 0 0 1px #222222" />
+            </div>
+
+            <sc-if value="{{ hasErr }}" hint-placeholder-val="{{ false }}">
+              <p style="margin:18px 0 0;font-size:13px;color:#c13515;font-weight:500">{{ uploadErr }}</p>
+            </sc-if>
+
+            <button onClick="{{ submitUpload }}" style="margin-top:26px;width:100%;height:52px;background:#ff385c;color:#ffffff;border:none;border-radius:8px;font-size:16px;font-weight:600;font-family:inherit;cursor:pointer" style-active="background:#e00b41">出品する</button>
+            <p style="margin:12px 0 0;font-size:12px;color:#929292;text-align:center">出品内容は公開前に伊那材木センターが確認します。</p>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ uploadDone }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:80px 28px 64px">
+            <span style="width:64px;height:64px;border-radius:9999px;background:#ff385c;display:flex;align-items:center;justify-content:center">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4.5 12.5L9.5 17.5L19.5 7" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </span>
+            <span style="margin-top:20px;font-size:20px;font-weight:600">出品が完了しました</span>
+            <span style="margin-top:10px;font-size:14px;color:#6a6a6a;line-height:1.7">3Dモデルの生成が完了すると<br />通知でお知らせします。</span>
+            <button onClick="{{ goList }}" style="margin-top:28px;width:100%;height:50px;background:#ff385c;color:#ffffff;border:none;border-radius:8px;font-size:16px;font-weight:600;font-family:inherit;cursor:pointer" style-active="background:#e00b41">一覧を確認する</button>
+            <button onClick="{{ resetUpload }}" style="margin-top:10px;width:100%;height:50px;background:#ffffff;color:#222222;border:1px solid #222222;border-radius:8px;font-size:16px;font-weight:600;font-family:inherit;cursor:pointer" style-active="background:#f7f7f7">続けて出品する</button>
+          </div>
+        </sc-if>
+      </section>
+    </sc-if>
+
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 430, &quot;height&quot;: 932}}">
+class Component extends DCLogic {
+  state = {
+    screen: 'list',
+    activeId: 'kaba',
+    mapOpen: false,
+    hearts: {},
+    sortAsc: false,
+    fSawnFilter: false,
+    fIrrFilter: false,
+    sheetOpen: false,
+    sheetSent: false,
+    qty: 1,
+    fName: '',
+    fSpecies: 'カラマツ',
+    fShape: 'sawn',
+    fLen: '',
+    fWid: '',
+    fThk: '',
+    fStock: '',
+    fPrice: '',
+    uploadDone: false,
+    uploadErr: ''
+  };
+
+  catalog = [
+    { id: 'kaba', title: '樺の木', species: 'カバ', shape: 'sawn', stock: 13, len: 2000, wid: 180, thk: 20, price: 80000, posted: '1か月前', has3d: false, pin: { top: '34%', left: '42%' }, ph: '樺の木の写真' },
+    { id: 'hoo', title: '四つ又ホオノキ', species: 'ホオノキ', shape: 'irregular', stock: 1, price: 2000, posted: '2週間前', has3d: true, pin: { top: '22%', left: '64%' }, ph: 'ホオノキのスキャン画像' },
+    { id: 'karamatsu', title: 'カラマツ', species: 'カラマツ', shape: 'sawn', stock: 13, len: 2000, wid: 180, thk: 20, price: 20000, posted: '3週間前', has3d: false, pin: { top: '56%', left: '34%' }, ph: 'カラマツの写真' },
+    { id: 'akamatsu', title: '赤松', species: 'アカマツ', shape: 'sawn', stock: 8, len: 3000, wid: 210, thk: 30, price: 20000, posted: '2か月前', has3d: false, pin: { top: '72%', left: '58%' }, ph: '赤松の写真' }
+  ];
+
+  nav(patch) {
+    this.setState(patch, () => { try { window.scrollTo(0, 0); } catch (e) {} });
+  }
+
+  toggleHeart(id) {
+    this.setState(s => ({ hearts: Object.assign({}, s.hearts, { [id]: !s.hearts[id] }) }));
+  }
+
+  decorate(it) {
+    const S = this.state;
+    const saved = !!S.hearts[it.id];
+    const isSawn = it.shape === 'sawn';
+    const priceLabel = '¥' + it.price.toLocaleString('ja-JP');
+    return Object.assign({}, it, {
+      isSawn: isSawn,
+      slotId: 'photo-' + it.id,
+      priceLabel: priceLabel,
+      unit: isSawn ? '/㎥' : '',
+      subLabel: isSawn
+        ? '長手 ' + it.len.toLocaleString('ja-JP') + '｜短手 ' + it.wid + '｜厚み ' + it.thk
+        : '不定形材・一点物',
+      heartFill: saved ? '#ff385c' : 'rgba(0,0,0,0.4)',
+      heartStroke: saved ? '#ff385c' : '#ffffff',
+      pinTop: it.pin.top,
+      pinLeft: it.pin.left,
+      pinLabel: it.species + '｜' + priceLabel + (isSawn ? '/㎥' : ''),
+      open: (e) => {
+        if (e && e.stopPropagation) e.stopPropagation();
+        this.nav({ screen: 'detail', activeId: it.id, mapOpen: false, sheetOpen: false, sheetSent: false, qty: 1 });
+      },
+      onHeart: (e) => {
+        if (e && e.stopPropagation) e.stopPropagation();
+        this.toggleHeart(it.id);
+      }
+    });
+  }
+
+  chip(active) {
+    return active
+      ? { bg: '#222222', color: '#ffffff', border: '#222222' }
+      : { bg: '#ffffff', color: '#222222', border: '#dddddd' };
+  }
+
+  renderVals() {
+    const S = this.state;
+    const items = this.catalog.map(it => this.decorate(it));
+
+    let listItems = items.filter(it => {
+      if (S.fSawnFilter && !S.fIrrFilter) return it.isSawn;
+      if (S.fIrrFilter && !S.fSawnFilter) return !it.isSawn;
+      return true;
+    });
+    if (S.sortAsc) listItems = listItems.slice().sort((a, b) => a.price - b.price);
+
+    const d = items.find(it => it.id === S.activeId) || items[0];
+    const dSaved = !!S.hearts[d.id];
+
+    const gallery = [
+      { sid: 'photo-' + d.id, ph: 'メイン写真' },
+      { sid: 'g-' + d.id + '-2', ph: '木口・側面の写真' },
+      { sid: 'g-' + d.id + '-3', ph: '木目アップの写真' }
+    ];
+
+    const specRows = d.isSawn
+      ? [
+          { k: '樹種', v: d.species },
+          { k: '形状', v: '製材済み' },
+          { k: '長手', v: d.len.toLocaleString('ja-JP') + ' mm' },
+          { k: '短手', v: d.wid + ' mm' },
+          { k: '厚み', v: d.thk + ' mm' },
+          { k: '在庫', v: d.stock + ' 本' }
+        ]
+      : [
+          { k: '樹種', v: d.species },
+          { k: '形状', v: '不定形材（一点物）' },
+          { k: 'サイズ', v: '3Dスキャン参照' },
+          { k: '在庫', v: '1 点' }
+        ];
+
+    const vol = d.isSawn ? (d.len * d.wid * d.thk) / 1e9 : 0;
+    const total = d.isSawn ? Math.round(d.price * vol) * S.qty : d.price;
+
+    const cSort = this.chip(S.sortAsc);
+    const cSawn = this.chip(S.fSawnFilter);
+    const cIrr = this.chip(S.fIrrFilter);
+    const pSawn = this.chip(S.fShape === 'sawn');
+    const pIrr = this.chip(S.fShape === 'irregular');
+
+    return {
+      isList: S.screen === 'list',
+      isDetail: S.screen === 'detail',
+      isUpload: S.screen === 'upload',
+      items: items,
+      listItems: listItems,
+
+      toggleSort: () => this.setState(s => ({ sortAsc: !s.sortAsc })),
+      toggleSawn: () => this.setState(s => ({ fSawnFilter: !s.fSawnFilter })),
+      toggleIrr: () => this.setState(s => ({ fIrrFilter: !s.fIrrFilter })),
+      chipSortBg: cSort.bg, chipSortColor: cSort.color, chipSortBorder: cSort.border,
+      chipSawnBg: cSawn.bg, chipSawnColor: cSawn.color, chipSawnBorder: cSawn.border,
+      chipIrrBg: cIrr.bg, chipIrrColor: cIrr.color, chipIrrBorder: cIrr.border,
+
+      mapOpen: S.mapOpen,
+      mapClosed: !S.mapOpen,
+      openMap: () => this.setState({ mapOpen: true }),
+      closeMap: () => this.setState({ mapOpen: false }),
+
+      goList: () => this.nav({ screen: 'list', mapOpen: false, sheetOpen: false }),
+      goUpload: () => this.nav({ screen: 'upload', uploadDone: false, uploadErr: '' }),
+
+      dTitle: d.title,
+      dShapeLabel: d.isSawn ? '製材済み' : '不定形材',
+      dPosted: d.posted,
+      dPriceLabel: d.priceLabel,
+      dUnit: d.unit,
+      dStockLine: d.isSawn ? '在庫 ' + d.stock + ' 本' : '一点物',
+      dIsSawn: d.isSawn,
+      dHeartFill: dSaved ? '#ff385c' : 'rgba(0,0,0,0.25)',
+      dHeartStroke: dSaved ? '#ff385c' : '#222222',
+      detailHeart: () => this.toggleHeart(d.id),
+      gallery: gallery,
+      specRows: specRows,
+
+      sheetOpen: S.sheetOpen,
+      sheetForm: !S.sheetSent,
+      sheetSent: S.sheetSent,
+      openSheet: () => this.setState({ sheetOpen: true, sheetSent: false, qty: 1 }),
+      closeSheet: () => this.setState({ sheetOpen: false }),
+      sendRequest: () => this.setState({ sheetSent: true }),
+      qty: S.qty,
+      qtyDec: () => this.setState(s => ({ qty: Math.max(1, s.qty - 1) })),
+      qtyInc: () => this.setState(s => ({ qty: Math.min(d.stock, s.qty + 1) })),
+      minusOpacity: S.qty <= 1 ? 0.35 : 1,
+      plusOpacity: S.qty >= d.stock ? 0.35 : 1,
+      volLine: d.isSawn ? vol.toFixed(4) + ' ㎥/本 × ' + S.qty + ' 本' : '',
+      totalLabel: '¥' + total.toLocaleString('ja-JP'),
+
+      fName: S.fName,
+      fSpecies: S.fSpecies,
+      fLen: S.fLen,
+      fWid: S.fWid,
+      fThk: S.fThk,
+      fStock: S.fStock,
+      fPrice: S.fPrice,
+      onName: (e) => this.setState({ fName: e.target.value }),
+      onSpecies: (e) => this.setState({ fSpecies: e.target.value }),
+      onLen: (e) => this.setState({ fLen: e.target.value }),
+      onWid: (e) => this.setState({ fWid: e.target.value }),
+      onThk: (e) => this.setState({ fThk: e.target.value }),
+      onStock: (e) => this.setState({ fStock: e.target.value }),
+      onPrice: (e) => this.setState({ fPrice: e.target.value }),
+      setSawn: () => this.setState({ fShape: 'sawn' }),
+      setIrr: () => this.setState({ fShape: 'irregular' }),
+      pillSawnBg: pSawn.bg, pillSawnColor: pSawn.color, pillSawnBorder: pSawn.border,
+      pillIrrBg: pIrr.bg, pillIrrColor: pIrr.color, pillIrrBorder: pIrr.border,
+      showDims: S.fShape === 'sawn',
+      showOnePiece: S.fShape === 'irregular',
+      priceFieldLabel: S.fShape === 'sawn' ? '価格（¥/㎥）' : '価格（一点物・¥）',
+      uploadFormVisible: !S.uploadDone,
+      uploadDone: S.uploadDone,
+      hasErr: !!S.uploadErr,
+      uploadErr: S.uploadErr,
+      submitUpload: () => {
+        const s = this.state;
+        if (!s.fName.trim()) { this.setState({ uploadErr: '商品名を入力してください。' }); return; }
+        if (!s.fPrice) { this.setState({ uploadErr: '価格を入力してください。' }); return; }
+        if (s.fShape === 'sawn' && (!s.fLen || !s.fWid || !s.fThk)) { this.setState({ uploadErr: '寸法（長手・短手・厚み）を入力してください。' }); return; }
+        this.nav({ uploadDone: true, uploadErr: '' });
+      },
+      resetUpload: () => this.nav({ uploadDone: false, uploadErr: '', fName: '', fLen: '', fWid: '', fThk: '', fStock: '', fPrice: '' })
+    };
+  }
+}
+
+</script>
+</body>
+</html>

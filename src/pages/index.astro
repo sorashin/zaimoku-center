@@ -1,0 +1,19 @@
+---
+import Base from '@/layouts/Base.astro';
+import { getData } from '@/lib/server/data';
+import { toCardView } from '@/lib/listingView';
+import { getSession } from '@/lib/server/session';
+import { ListBrowser } from '@/components/listing/ListBrowser';
+
+const data = getData(Astro.locals.runtime?.env);
+const listings = await data.getListings(undefined, 'newest');
+const items = listings.map(toCardView);
+
+const session = await getSession(Astro);
+const loggedIn = Boolean(session.user);
+const savedIds = session.user ? await data.getFavoriteIds(session.user.id) : [];
+---
+
+<Base title="在庫一覧">
+  <ListBrowser items={items} savedIds={savedIds} loggedIn={loggedIn} client:load />
+</Base>

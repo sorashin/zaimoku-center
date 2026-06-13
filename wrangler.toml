@@ -1,0 +1,24 @@
+# Cloudflare Pages 設定
+# デプロイ: `yarn build`（@astrojs/cloudflare が dist/ を生成）→ `yarn deploy`
+#   （= wrangler pages deploy dist）。初回はプロジェクトが自動作成される。
+#
+# 環境変数・シークレットは Pages ダッシュボード（Settings → Environment variables）
+# または `wrangler pages secret put <NAME> --project-name zaimoku-center` で設定する。
+# wrangler.toml の [vars] は Pages では本番に反映されないため、ここには秘匿値を書かない。
+
+name = "zaimoku-center"
+compatibility_date = "2025-05-05"
+compatibility_flags = ["nodejs_compat"]
+
+pages_build_output_dir = "./dist"
+
+# セッション用 KV（@astrojs/cloudflare の Sessions 機能が要求）
+[[kv_namespaces]]
+binding = "SESSION"
+id = "c7f584afd8fe4e209da026bc406a377b"
+
+# R2 バインディングは不要（3Dモデルは aws4fetch の S3 互換 API 経由で読み書きするため）。
+# Workers バインディング経由に切り替える場合のみ以下を有効化:
+# [[r2_buckets]]
+# binding = "MODELS"
+# bucket_name = "zaimoku-models"

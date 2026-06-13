@@ -1,0 +1,193 @@
+---
+import Base from '@/layouts/Base.astro';
+import { getData } from '@/lib/server/data';
+import { getSession } from '@/lib/server/session';
+import { toDetailView, buildSpecRows } from '@/lib/detailView';
+import { toCardView } from '@/lib/listingView';
+import { MediaViewer } from '@/components/viewer/MediaViewer';
+import { MiniMap } from '@/components/map/MiniMap';
+import { FavoriteButton } from '@/components/FavoriteButton';
+import { RequestSheet } from '@/components/listing/RequestSheet';
+
+const data = getData(Astro.locals.runtime?.env);
+const { id } = Astro.params;
+const listing = id ? await data.getListing(id) : null;
+
+if (!listing) {
+  return new Response('Not Found', { status: 404 });
+}
+
+const session = await getSession(Astro);
+const loggedIn = Boolean(session.user);
+const savedIds = session.user ? await data.getFavoriteIds(session.user.id) : [];
+const initialSaved = savedIds.includes(listing.id);
+
+const detail = toDetailView(listing);
+const specRows = buildSpecRows(listing);
+const related = await data.getRelatedListings(listing, 8);
+const relatedCards = related.map(toCardView);
+---
+
+<Base title={listing.title}>
+  <div class="mx-auto max-w-[1120px] lg:px-6 lg:py-6">
+    <div class="lg:flex lg:gap-8">
+      {/* ===== 左: メディア + 情報（デスクトップ 64%） ===== */}
+      <div class="min-w-0 lg:w-[62%]">
+        {/* --- メディアエリア（主役） --- */}
+        <div class="relative">
+          <MediaViewer
+            title={detail.title}
+            photos={detail.photos}
+            modelUrl={detail.modelUrl}
+            modelFormat={detail.modelFormat}
+            client:load
+          />
+
+          {/* 戻る（左上） */}
+          <a
+            href="/"
+            aria-label="戻る"
+            class="absolute left-3.5 top-3.5 z-10 flex h-[38px] w-[38px] items-center justify-center rounded-pill bg-white no-underline shadow-[rgba(0,0,0,0.15)_0_2px_6px_0]"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path
+                d="M10 2.5L4.5 8L10 13.5"
+                stroke="#222222"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"></path>
+            </svg>
+          </a>
+
+          {/* ハート（右上） */}
+          <div class="absolute right-3.5 top-3.5 z-10">
+            <FavoriteButton
+              listingId={detail.id}
+              initialSaved={initialSaved}
+              loggedIn={loggedIn}
+              variant="detail"
+              client:load
+            />
+          </div>
+        </div>
+
+        {/* --- タイトル・バッジ --- */}
+        <div class="px-4 pt-5 md:px-0">
+          <h1 class="m-0 text-[21px] font-semibold leading-[1.3] md:text-[24px]">
+            {detail.title}
+          </h1>
+          <div class="mt-2 flex flex-wrap items-center gap-2.5">
+            <span class="rounded-pill bg-surface-muted px-3 py-1.5 text-[12px] font-semibold">
+              {detail.shapeLabel}
+            </span>
+            <span class="text-[13px] text-ink-sub">
+              {detail.seller.locationLabel} ・ {detail.postedLabel}出品
+            </span>
+            <span
+              class="rounded-pill bg-primary-tint px-2.5 py-1 text-[12px] font-semibold text-ink"
+            >
+              {detail.minUnitLabel}
+            </span>
+          </div>
+        </div>
+
+        {/* --- スペック表 --- */}
+        <div class="mx-4 mt-6 border-t border-hairline pt-5 md:mx-0">
+          <h2 class="mb-1 text-[18px] font-semibold">商品情報</h2>
+          {
+            specRows.map((row) => (
+              <div class="flex justify-between gap-4 border-b border-hairline py-3.5">
+                <span class="text-[14px] text-ink-sub">{row.k}</span>
+                <span class="text-right text-[14px] font-medium">{row.v}</span>
+              </div>
+            ))
+          }
+        </div>
+
+        {/* --- 説明文 --- */}
+        {
+          listing.description && (
+            <div class="mx-4 mt-6 border-t border-hairline pt-5 md:mx-0">
+              <h2 class="mb-2 text-[18px] font-semibold">この材について</h2>
+              <p class="m-0 whitespace-pre-line text-[14px] leading-relaxed text-ink-sub">
+                {listing.description}
+              </p>
+            </div>
+          )
+        }
+
+        {/* --- 出品者カード --- */}
+        <div class="mx-4 mt-6 md:mx-0">
+          <div class="flex items-center gap-3.5 rounded-card border border-hairline p-4">
+            <span
+              class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-pill text-[12px] font-bold text-white"
+              style={`background:${listing.seller.avatarColor}`}
+            >
+              {detail.seller.shortLabel}
+            </span>
+            <span class="flex flex-col gap-0.5">
+              <span class="text-[16px] font-semibold">{detail.seller.companyName}</span>
+              <span class="text-[13px] text-ink-sub">{detail.seller.locationLabel}の出品者</span>
+            </span>
+          </div>
+        </div>
+
+        {/* --- 所在地 MiniMap --- */}
+        <div class="mx-4 mt-6 border-t border-hairline pb-2 pt-5 md:mx-0">
+          <h2 class="mb-3.5 text-[18px] font-semibold">所在地</h2>
+          <div class="h-[190px] overflow-hidden rounded-card">
+            <MiniMap lat={listing.seller.lat} lng={listing.seller.lng} client:visible />
+          </div>
+          <p class="mt-2.5 text-[13px] text-ink-sub">
+            {detail.seller.locationLabel} ー 正確な引き渡し場所は取引確定後に共有されます。
+          </p>
+        </div>
+      </div>
+
+      {/* ===== 右: 情報パネル（デスクトップのみ・CTAカード） ===== */}
+      <aside class="hidden lg:block lg:w-[38%]">
+        <div class="sticky top-[73px]">
+          <RequestSheet detail={detail} loggedIn={loggedIn} layout="desktop" client:load />
+        </div>
+      </aside>
+    </div>
+
+    {/* ===== 関連在庫（横スクロール小型カード） ===== */}
+    {
+      relatedCards.length > 0 && (
+        <div class="mt-8 border-t border-hairline px-4 pb-10 pt-6 md:px-0">
+          <h2 class="mb-4 text-[18px] font-semibold">
+            {detail.seller.companyName}の他の材
+          </h2>
+          <div class="no-scrollbar flex gap-4 overflow-x-auto pb-2">
+            {relatedCards.map((c) => (
+              <a
+                href={`/items/${c.id}`}
+                class="block w-[160px] flex-shrink-0 no-underline text-ink"
+              >
+                <img
+                  src={c.mainPhoto}
+                  alt={c.title}
+                  loading="lazy"
+                  class="block aspect-square w-full rounded-card object-cover"
+                />
+                <div class="mt-2 text-[14px] font-semibold">{c.title}</div>
+                <div class="mt-0.5 text-[14px] font-semibold">
+                  {c.priceLabel}
+                  {c.unitLabel && (
+                    <span class="text-[12px] font-normal text-ink-sub">{c.unitLabel}</span>
+                  )}
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      )
+    }
+  </div>
+
+  {/* ===== モバイル: sticky 下部バー ===== */}
+  <div class="lg:hidden">
+    <RequestSheet detail={detail} loggedIn={loggedIn} layout="mobile" client:load />
+  </div>
+</Base>

@@ -1,0 +1,90 @@
+---
+import Base from '@/layouts/Base.astro';
+import { DEMO_COOKIE, isDemoUserKey } from '@/lib/server/session';
+import { getDataMode } from '@/lib/server/data';
+import { AuthForm } from '@/components/auth/AuthForm';
+
+export const prerender = false;
+
+// mock モード: デモログインボタンの POST を受けて cookie をセット
+let error: string | null = null;
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const demo = form.get('demo');
+  if (typeof demo === 'string' && isDemoUserKey(demo)) {
+    Astro.cookies.set(DEMO_COOKIE, demo, {
+      path: '/',
+      httpOnly: true,
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 30,
+    });
+    const rawTarget = (form.get('redirect') as string) || '/';
+    // オープンリダイレクト防止: 同一サイト内パスのみ許可
+    const target = rawTarget.startsWith('/') && !rawTarget.startsWith('//') ? rawTarget : '/';
+    return Astro.redirect(target);
+  }
+  error = 'ログインに失敗しました。';
+}
+
+const env = Astro.locals.runtime?.env;
+const mode = getDataMode(env);
+const redirectTo = Astro.url.searchParams.get('redirect') ?? '/';
+// SUPABASE_URL / ANON_KEY は公開可（anon はクライアント公開前提）。runtime env 優先・import.meta.env フォールバック。
+const supabaseUrl = env?.SUPABASE_URL ?? import.meta.env.SUPABASE_URL ?? '';
+const supabaseAnonKey = env?.SUPABASE_ANON_KEY ?? import.meta.env.SUPABASE_ANON_KEY ?? '';
+---
+
+<Base title="ログイン">
+  <div class="mx-auto max-w-[420px] px-4 py-12 md:px-6">
+    <h1 class="text-[21px] font-semibold">ログイン</h1>
+
+    {mode === 'mock' ? (
+      <>
+        <p class="mt-2 text-[14px] text-ink-sub">
+          デモ環境です。下のいずれかでログインしてください。
+        </p>
+        {error && <p class="mt-4 text-[13px] font-medium text-danger">{error}</p>}
+
+        <form method="POST" class="mt-6 flex flex-col gap-3">
+          <input type="hidden" name="redirect" value={redirectTo} />
+          <button
+            type="submit"
+            name="demo"
+            value="buyer-demo"
+            class="rounded-btn border border-ink bg-surface px-4 py-3.5 text-left text-[15px] font-semibold text-ink transition-colors hover:bg-surface-muted"
+          >
+            買い手としてログイン
+            <span class="mt-0.5 block text-[12px] font-normal text-ink-sub">
+              在庫を探す・お気に入り・購入リクエスト
+            </span>
+          </button>
+          <button
+            type="submit"
+            name="demo"
+            value="seller-morimoku"
+            class="rounded-btn bg-primary px-4 py-3.5 text-left text-[15px] font-bold text-ink transition-colors hover:bg-primary-active"
+          >
+            盛木材としてログイン（出品者）
+            <span class="mt-0.5 block text-[12px] font-normal text-ink/70">
+              在庫を出品・出品管理
+            </span>
+          </button>
+        </form>
+      </>
+    ) : (
+      <>
+        <p class="mt-2 text-[14px] text-ink-sub">
+          Google またはメールアドレスでログインしてください。
+        </p>
+        {error && <p class="mt-4 text-[13px] font-medium text-danger">{error}</p>}
+        <AuthForm
+          supabaseUrl={supabaseUrl}
+          supabaseAnonKey={supabaseAnonKey}
+          redirectTo={redirectTo}
+          client:load
+        />
+      </>
+    )}
+  </div>
+</Base>

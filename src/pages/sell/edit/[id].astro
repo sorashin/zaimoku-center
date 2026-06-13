@@ -1,0 +1,86 @@
+---
+import Base from '@/layouts/Base.astro';
+import { getSession } from '@/lib/server/session';
+import { getData } from '@/lib/server/data';
+import { UploadForm, type UploadFormInitial } from '@/components/sell/UploadForm';
+
+export const prerender = false;
+
+const data = getData(Astro.locals.runtime?.env);
+const session = await getSession(Astro);
+const user = session.user;
+const sellerId = user?.sellerProfile?.sellerId;
+const { id } = Astro.params;
+
+let initial: UploadFormInitial | null = null;
+let denied: 'login' | 'role' | 'notfound' | 'forbidden' | null = null;
+
+if (!user) {
+  denied = 'login';
+} else if (user.role !== 'seller' || !sellerId) {
+  denied = 'role';
+} else if (!id) {
+  denied = 'notfound';
+} else {
+  const listing = await data.getListing(id);
+  if (!listing) {
+    denied = 'notfound';
+  } else if (listing.sellerId !== sellerId) {
+    denied = 'forbidden';
+  } else {
+    initial = {
+      id: listing.id,
+      title: listing.title,
+      species: listing.species,
+      shape: listing.shape,
+      lengthMm: listing.lengthMm,
+      widthMm: listing.widthMm,
+      thicknessMm: listing.thicknessMm,
+      stock: listing.stock,
+      price: listing.price,
+      minUnitLabel: listing.minUnitLabel,
+      description: listing.description,
+      moisture: listing.moisture,
+      dryness: listing.dryness,
+      heartwood: listing.heartwood,
+      knots: listing.knots,
+      modelUrl: listing.modelUrl,
+      modelFormat: listing.modelFormat,
+      photos: listing.photos,
+    };
+  }
+}
+---
+
+{
+  initial && user ? (
+    <Base title="出品を編集" header={false}>
+      <div class="mx-auto max-w-[560px]">
+        <UploadForm sellerName={user.name} initial={initial} client:load />
+      </div>
+    </Base>
+  ) : (
+    <Base title="出品を編集">
+      <div class="mx-auto max-w-[560px] px-4 py-12 md:px-6">
+        <h1 class="text-[21px] font-semibold">出品を編集</h1>
+        {denied === 'login' ? (
+          <p class="mt-3 text-[14px] text-ink-sub">
+            ログインが必要です。
+            <a href={`/login?redirect=/sell/edit/${id ?? ''}`} class="font-semibold text-ink underline">
+              ログイン
+            </a>
+          </p>
+        ) : denied === 'forbidden' ? (
+          <p class="mt-3 text-[14px] text-ink-sub">この出品を編集する権限がありません。</p>
+        ) : denied === 'notfound' ? (
+          <p class="mt-3 text-[14px] text-ink-sub">出品が見つかりませんでした。</p>
+        ) : (
+          <p class="mt-3 text-[14px] text-ink-sub">編集は出品者アカウントのみ利用できます。</p>
+        )}
+        <a href="/sell/manage" class="mt-4 inline-block text-[14px] font-semibold text-ink underline">
+          出品管理へ戻る
+        </a>
+      </div>
+    </Base>
+  )
+}

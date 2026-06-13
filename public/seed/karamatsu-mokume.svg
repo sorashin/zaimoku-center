@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#dd9468"/>
+      <stop offset="0.5" stop-color="#c06a3a"/>
+      <stop offset="1" stop-color="#9a4d24"/>
+    </linearGradient>
+    <radialGradient id="koguchi" cx="46%" cy="46%" r="70%">
+      <stop offset="0" stop-color="#dd9468"/>
+      <stop offset="1" stop-color="#9a4d24"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="800" fill="url(#bg)"/>
+  <path d="M 0 25 C 264 7, 528 43, 800 25" fill="none" stroke="#9a4d24" stroke-width="2.2" stroke-opacity="0.18"/><path d="M 0 75 C 264 49, 528 101, 800 75" fill="none" stroke="#9a4d24" stroke-width="2.2" stroke-opacity="0.22999999999999998"/><path d="M 0 125 C 264 91, 528 159, 800 125" fill="none" stroke="#9a4d24" stroke-width="2.2" stroke-opacity="0.28"/><path d="M 0 175 C 264 133, 528 217, 800 175" fill="none" stroke="#9a4d24" stroke-width="2.2" stroke-opacity="0.18"/><path d="M 0 225 C 264 207, 528 243, 800 225" fill="none" stroke="#9a4d24" stroke-width="2.2" stroke-opacity="0.22999999999999998"/><path d="M 0 275 C 264 249, 528 301, 800 275" fill="none" stroke="#9a4d24" stroke-width="2.2" stroke-opacity="0.28"/><path d="M 0 325 C 264 291, 528 359, 800 325" fill="none" stroke="#9a4d24" stroke-width="2.2" stroke-opacity="0.18"/><path d="M 0 375 C 264 333, 528 417, 800 375" fill="none" stroke="#9a4d24" stroke-width="2.2" stroke-opacity="0.22999999999999998"/><path d="M 0 425 C 264 407, 528 443, 800 425" fill="none" stroke="#9a4d24" stroke-width="2.2" stroke-opacity="0.28"/><path d="M 0 475 C 264 449, 528 501, 800 475" fill="none" stroke="#9a4d24" stroke-width="2.2" stroke-opacity="0.18"/><path d="M 0 525 C 264 491, 528 559, 800 525" fill="none" stroke="#9a4d24" stroke-width="2.2" stroke-opacity="0.22999999999999998"/><path d="M 0 575 C 264 533, 528 617, 800 575" fill="none" stroke="#9a4d24" stroke-width="2.2" stroke-opacity="0.28"/><path d="M 0 625 C 264 607, 528 643, 800 625" fill="none" stroke="#9a4d24" stroke-width="2.2" stroke-opacity="0.18"/><path d="M 0 675 C 264 649, 528 701, 800 675" fill="none" stroke="#9a4d24" stroke-width="2.2" stroke-opacity="0.22999999999999998"/><path d="M 0 725 C 264 691, 528 759, 800 725" fill="none" stroke="#9a4d24" stroke-width="2.2" stroke-opacity="0.28"/><path d="M 0 775 C 264 733, 528 817, 800 775" fill="none" stroke="#9a4d24" stroke-width="2.2" stroke-opacity="0.18"/>
+  
+</svg>

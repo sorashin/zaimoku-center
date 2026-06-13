@@ -1,0 +1,103 @@
+@import 'tailwindcss';
+
+/* ===== デザイントークン（伊那材木センター / 和・クラフト） ===== */
+@theme {
+  /* 色: 背景・サーフェス */
+  --color-canvas: #faf7f2; /* 生成り背景 */
+  --color-surface: #ffffff; /* カード面 */
+  --color-surface-muted: #f3eee5; /* 淡いベージュ面 */
+
+  /* 色: テキスト */
+  --color-ink: #222222; /* 主テキスト */
+  --color-ink-sub: #6a6a6a; /* サブテキスト */
+  --color-ink-faint: #929292; /* 補助テキスト */
+
+  /* 色: ライン */
+  --color-hairline: #e8e1d5; /* 生成りに馴染む暖色グレー */
+  --color-border-strong: #c9c0b2;
+
+  /* 色: プライマリー（マンゴー） */
+  --color-primary: #ff9f1c;
+  --color-primary-active: #f18b00;
+  --color-primary-tint: #ffe9cc;
+
+  /* 色: エラー */
+  --color-danger: #c13515;
+
+  /* 角丸 */
+  --radius-btn: 8px;
+  --radius-card: 14px;
+  --radius-pill: 9999px;
+
+  /* フォント */
+  --font-sans: 'Noto Sans JP', -apple-system, system-ui, sans-serif;
+}
+
+/* 影は1段のみ */
+@theme {
+  --shadow-card: rgba(0, 0, 0, 0.02) 0 0 0 1px, rgba(0, 0, 0, 0.04) 0 2px 6px 0,
+    rgba(0, 0, 0, 0.08) 0 4px 8px 0;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-ink-faint);
+}
+
+/* カード登場: シンプルなフェードイン（順次delayはインラインstyleで付与） */
+@keyframes cardFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes overlayFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ボトムシートのせり上がり（購入リクエスト） */
+@keyframes sheetUp {
+  from {
+    transform: translate(-50%, 100%);
+  }
+  to {
+    transform: translate(-50%, 0);
+  }
+}
+
+/* スクロールバー非表示ユーティリティ */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

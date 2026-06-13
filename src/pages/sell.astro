@@ -1,0 +1,40 @@
+---
+import Base from '@/layouts/Base.astro';
+import { getSession } from '@/lib/server/session';
+import { UploadForm } from '@/components/sell/UploadForm';
+
+export const prerender = false;
+
+const session = await getSession(Astro);
+const user = session.user;
+const isSeller = user?.role === 'seller';
+---
+
+{
+  isSeller && user ? (
+    <Base title="商品を出品" header={false}>
+      <div class="mx-auto max-w-[560px]">
+        <UploadForm sellerName={user.name} client:load />
+      </div>
+    </Base>
+  ) : (
+    <Base title="出品する">
+      <div class="mx-auto max-w-[560px] px-4 py-12 md:px-6">
+        <h1 class="text-[21px] font-semibold">商品を出品</h1>
+        {!user ? (
+          <p class="mt-3 text-[14px] text-ink-sub">
+            出品にはログインが必要です。
+            <a href="/login?redirect=/sell" class="font-semibold text-ink underline">
+              ログイン
+            </a>
+            してください。
+          </p>
+        ) : (
+          <p class="mt-3 text-[14px] text-ink-sub">
+            出品は出品者アカウントのみ利用できます。出品者権限は運営が付与します。
+          </p>
+        )}
+      </div>
+    </Base>
+  )
+}
