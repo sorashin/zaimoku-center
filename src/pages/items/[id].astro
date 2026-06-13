@@ -8,6 +8,7 @@ import { MediaViewer } from '@/components/viewer/MediaViewer';
 import { MiniMap } from '@/components/map/MiniMap';
 import { FavoriteButton } from '@/components/FavoriteButton';
 import { RequestSheet } from '@/components/listing/RequestSheet';
+import { ONERROR_FALLBACK, PLACEHOLDER_IMAGE } from '@/lib/image';
 
 const data = getData(Astro.locals.runtime?.env);
 const { id } = Astro.params;
@@ -166,9 +167,10 @@ const relatedCards = related.map(toCardView);
                 class="block w-[160px] flex-shrink-0 no-underline text-ink"
               >
                 <img
-                  src={c.mainPhoto}
+                  src={c.mainPhoto || PLACEHOLDER_IMAGE}
                   alt={c.title}
                   loading="lazy"
+                  onerror={ONERROR_FALLBACK}
                   class="block aspect-square w-full rounded-card object-cover"
                 />
                 <div class="mt-2 text-[14px] font-semibold">{c.title}</div>

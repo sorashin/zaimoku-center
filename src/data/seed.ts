@@ -35,18 +35,47 @@ export const seedSellers: Seller[] = [
   },
 ];
 
-// ===== 写真ヘルパー（generate-seed-images.mjs が public/seed/ に生成） =====
+// ===== 写真ヘルパー =====
+// 実写真は R2 公開バケットにアップロード済み（scripts/upload-listing-photos.mjs）。
+// 公開URLは秘匿情報ではないため直接参照する。R2 に無い品目は placeholder.png。
+//
+// 注意: ここは mock データモード専用（クライアントにバンドルされるため env を読めない）。
+// このベースURL・実写品目集合・ファイル名規約（<id>-main/-2/-3.jpg）は
+// scripts/seed-supabase.mjs（env R2_PUBLIC_BASE_URL 駆動）と
+// scripts/upload-listing-photos.mjs（PUTキー）と同じバケットを指す。変更時は3箇所を揃えること。
 
+const R2_PHOTO_BASE =
+  'https://pub-0f7782ca86a54f1e8377c89f1a15ff21.r2.dev/seed-photos';
+
+// main 実写真がある品目（3D品目は main をポスター画像にするため除外）。
+const REAL_PHOTO_IDS = new Set([
+  'kaba',
+  'karamatsu',
+  'akamatsu',
+  'sugi',
+  'hinoki',
+  'kuri',
+  'udaikanba',
+]);
+
+/**
+ * 出品の写真配列を返す。
+ * 1枚目(main): 実写品目は <id>-main.jpg、3D品目は modelPosterUrl 側に委ねるため placeholder。
+ * 2枚目以降: <id>-2.jpg / <id>-3.jpg（樹種の色味に合わせた板材写真）。
+ */
 function photos(id: string): Listing['photos'] {
+  const main = REAL_PHOTO_IDS.has(id)
+    ? `${R2_PHOTO_BASE}/${id}-main.jpg`
+    : '/placeholder.png';
   return [
-    { url: `/seed/${id}-main.svg`, isMain: true },
-    { url: `/seed/${id}-koguchi.svg`, isMain: false },
-    { url: `/seed/${id}-mokume.svg`, isMain: false },
+    { url: main, isMain: true },
+    { url: `${R2_PHOTO_BASE}/${id}-2.jpg`, isMain: false },
+    { url: `${R2_PHOTO_BASE}/${id}-3.jpg`, isMain: false },
   ];
 }
 
-// ===== 11品目 =====
-// 樹種スラッグ（seed画像のファイル名にも使用）と木肌色は scripts/generate-seed-images.mjs と一致させる。
+// ===== 9品目 =====
+// 樹種スラッグ（id）は R2 写真ファイル名（seed-photos/<id>-*.jpg）にも使用する。
 
 export const seedListings: Listing[] = [
   {

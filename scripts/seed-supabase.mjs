@@ -1,4 +1,4 @@
-// Supabase へシードデータ（出品者3社・11品目）を投入するスクリプト。
+// Supabase へシードデータ（出品者3社・9品目）を投入するスクリプト。
 //   yarn seed:supabase
 // 必要 env（.env から読む）: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY
 //
@@ -112,7 +112,7 @@ const photos = (l) => {
   return rows;
 };
 
-// ===== 11品目（src/data/seed.ts の seedListings と値を一致させること。slug は画像ファイル名用） =====
+// ===== 9品目（src/data/seed.ts の seedListings と値を一致させること。slug は画像ファイル名用） =====
 const LISTINGS = [
   { slug: 'kaba', sellerKey: 'seller-morimoku', title: '樺の木', species: 'カバ', shape: 'sawn', lengthMm: 2000, widthMm: 180, thicknessMm: 20, stock: 13, price: 80000, priceUnit: 'per_m3', minUnitLabel: '1本からOK', description: '緻密で硬く、上品な光沢のある樺材です。家具や床材におすすめ。よく乾燥しています。', moisture: '12%', dryness: '人工乾燥（KD）', heartwood: '赤身主体', knots: '小節少なめ', postedAt: '2026-05-13T09:00:00+09:00' },
   { slug: 'karamatsu', sellerKey: 'seller-morimoku', title: 'カラマツ', species: 'カラマツ', shape: 'sawn', lengthMm: 2000, widthMm: 180, thicknessMm: 20, stock: 13, price: 20000, priceUnit: 'per_m3', minUnitLabel: '1本からOK', description: '赤褐色の力強い木目が魅力。デッキ材や構造材に。', moisture: '15%', dryness: '天然乾燥（AD）', postedAt: '2026-05-23T09:00:00+09:00' },

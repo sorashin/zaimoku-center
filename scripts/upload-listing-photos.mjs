@@ -5,6 +5,10 @@
 // 各 slug ごとに seed-photos/<slug>-2.jpg, -3.jpg ... のキーで PUT する。
 // sharp で長辺1600pxの JPEG に変換して軽量化する。
 // アップロード後の公開URLは seed-supabase.mjs の photos() が <slug>-N.jpg 規約で参照する。
+//
+// 注意: 初回投入は完了済み（R2 反映済み）。元素材 PNG はサイズが大きいためリポジトリから
+// 削除してある。再実行する場合は ASSIGNMENT のファイルを public/uploads に戻すこと
+// （見つからないファイルは skip される）。
 
 import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';

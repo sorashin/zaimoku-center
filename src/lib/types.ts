@@ -88,6 +88,8 @@ export interface SessionUser {
   id: string;
   name: string;
   role: UserRole;
+  /** ソーシャルログイン（Google等）のプロフィール画像URL。無ければイニシャルアイコンを表示 */
+  avatarUrl?: string;
   /** seller ロールのみ保持 */
   sellerProfile?: SellerProfile;
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { DetailView } from '@/lib/detailView';
+import { onImgError, PLACEHOLDER_IMAGE } from '@/lib/image';
 
 interface Props {
   detail: DetailView;
@@ -161,8 +162,9 @@ export function RequestSheet({ detail, loggedIn, layout = 'mobile' }: Props) {
                 {/* 品目サマリー */}
                 <div className="mt-3.5 flex items-center gap-2.5 border-b border-hairline pb-4.5">
                   <img
-                    src={detail.mainPhoto}
+                    src={detail.mainPhoto || PLACEHOLDER_IMAGE}
                     alt=""
+                    onError={onImgError}
                     className="h-10 w-10 flex-shrink-0 rounded-[10px] object-cover"
                   />
                   <span className="flex flex-col gap-px">

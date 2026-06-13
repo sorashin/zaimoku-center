@@ -1,5 +1,6 @@
 import type { ListingCardView } from '@/lib/listingView';
 import { FavoriteButton } from '@/components/FavoriteButton';
+import { onImgError, PLACEHOLDER_IMAGE } from '@/lib/image';
 
 interface Props {
   item: ListingCardView;
@@ -41,9 +42,10 @@ export function ListingCard({
         }}
       >
         <img
-          src={item.mainPhoto}
+          src={item.mainPhoto || PLACEHOLDER_IMAGE}
           alt={item.title}
           loading="lazy"
+          onError={onImgError}
           className="block aspect-square w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
         />
 

@@ -93,10 +93,18 @@ async function getSupabaseSession(
     user.email ??
     'ユーザー';
 
+  // ソーシャルログイン（Google等）のプロフィール画像。provider により key が異なる。
+  const meta = user.user_metadata ?? {};
+  const avatarUrl =
+    (meta.avatar_url as string | undefined) ??
+    (meta.picture as string | undefined) ??
+    undefined;
+
   const sessionUser: SessionUser = {
     id: user.id,
     name,
     role,
+    ...(avatarUrl ? { avatarUrl } : {}),
     ...(role === 'seller' ? { sellerProfile: { sellerId: user.id } } : {}),
   };
   return { user: sessionUser };

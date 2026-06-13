@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ListingStatus } from '@/lib/types';
+import { onImgError } from '@/lib/image';
 
 export interface ManageItem {
   id: string;
@@ -101,7 +102,12 @@ export function ManageList({ items: initialItems }: Props) {
           <div className="flex items-center gap-3">
             <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-[10px] bg-surface-muted">
               {it.thumb ? (
-                <img src={it.thumb} alt="" className="h-full w-full object-cover" />
+                <img
+                  src={it.thumb}
+                  alt=""
+                  onError={onImgError}
+                  className="h-full w-full object-cover"
+                />
               ) : (
                 <span className="flex h-full w-full items-center justify-center text-[11px] text-ink-faint">
                   写真なし

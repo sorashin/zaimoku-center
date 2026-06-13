@@ -9,7 +9,6 @@
     "preview": "astro preview",
     "check": "astro check",
     "astro": "astro",
-    "seed:images": "node scripts/generate-seed-images.mjs",
     "seed:posters": "node scripts/generate-model-posters.mjs",
     "seed:photos": "node scripts/upload-listing-photos.mjs",
     "seed:supabase": "node scripts/seed-supabase.mjs",

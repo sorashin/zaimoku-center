@@ -1,0 +1,42 @@
+---
+// ヘッダー等のユーザーアバター。ソーシャル画像があれば画像、無ければイニシャル丸。
+import { avatarColor, avatarInitials } from '@/lib/avatar';
+
+interface Props {
+  /** 表示名（イニシャル生成・alt に使用） */
+  name: string;
+  /** 色決定のシード（通常はユーザーID） */
+  seed: string;
+  /** ソーシャルログイン（Google等）のプロフィール画像URL */
+  url?: string;
+  /** 追加クラス（リンクでラップしない場合のホバー等） */
+  class?: string;
+}
+
+const { name, seed, url, class: className } = Astro.props;
+const color = avatarColor(seed || name);
+const initials = avatarInitials(name);
+---
+
+{
+  url ? (
+    <img
+      src={url}
+      alt={name}
+      referrerpolicy="no-referrer"
+      class:list={['h-9 w-9 rounded-pill border border-hairline object-cover', className]}
+    />
+  ) : (
+    <span
+      aria-label={name}
+      title={name}
+      class:list={[
+        'flex h-9 w-9 items-center justify-center rounded-pill text-[13px] font-bold leading-none text-white',
+        className,
+      ]}
+      style={`background:${color}`}
+    >
+      {initials}
+    </span>
+  )
+}

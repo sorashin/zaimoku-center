@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ModelFormat } from '@/lib/types';
+import { onImgError, PLACEHOLDER_IMAGE } from '@/lib/image';
 import { ModelViewer } from './ModelViewer';
 
 interface Props {
@@ -33,8 +34,9 @@ export function MediaViewer({ title, photos, modelUrl, modelFormat }: Props) {
           {photos.map((src, i) => (
             <img
               key={i}
-              src={src}
+              src={src || PLACEHOLDER_IMAGE}
               alt={`${title} 写真${i + 1}`}
+              onError={onImgError}
               className="block aspect-[4/3] w-full flex-[0_0_100%] object-cover"
               style={{ scrollSnapAlign: 'start' }}
             />
@@ -59,8 +61,9 @@ export function MediaViewer({ title, photos, modelUrl, modelFormat }: Props) {
           />
         ) : (
           <img
-            src={photos[photoIndex] ?? photos[0]}
+            src={photos[photoIndex] ?? photos[0] ?? PLACEHOLDER_IMAGE}
             alt={`${title} 写真${photoIndex + 1}`}
+            onError={onImgError}
             className="block h-full w-full object-cover md:rounded-card"
           />
         )}
@@ -122,7 +125,7 @@ export function MediaViewer({ title, photos, modelUrl, modelFormat }: Props) {
                 mode === 'photo' && photoIndex === i ? '#FF9F1C' : 'var(--color-hairline)',
             }}
           >
-            <img src={src} alt="" className="h-full w-full object-cover" />
+            <img src={src || PLACEHOLDER_IMAGE} alt="" onError={onImgError} className="h-full w-full object-cover" />
           </button>
         ))}
       </div>

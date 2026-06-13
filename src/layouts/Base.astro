@@ -1,6 +1,7 @@
 ---
 import '@/styles/global.css';
 import { getSession } from '@/lib/server/session';
+import UserAvatar from '@/components/UserAvatar.astro';
 
 interface Props {
   title?: string;
@@ -76,9 +77,18 @@ const desc =
                       />
                     </svg>
                   </a>
-                  <span class="hidden text-[13px] font-medium text-ink-sub sm:inline">
-                    {user.name}
-                  </span>
+                  {user.role === 'seller' ? (
+                    <a
+                      href="/sell/manage"
+                      aria-label={`${user.name}の出品管理`}
+                      title={`${user.name}の出品管理`}
+                      class="flex items-center no-underline transition-opacity hover:opacity-80"
+                    >
+                      <UserAvatar name={user.name} seed={user.id} url={user.avatarUrl} />
+                    </a>
+                  ) : (
+                    <UserAvatar name={user.name} seed={user.id} url={user.avatarUrl} />
+                  )}
                   <form method="POST" action="/api/auth/signout">
                     <button
                       type="submit"
