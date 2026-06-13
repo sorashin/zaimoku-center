@@ -74,22 +74,42 @@ const SELLERS = [
 
 const SELLER_PASSWORD = 'Seed-pass-2026!';
 
-// R2 に実写（main/mokume の JPG）をアップロード済みの製材済み品目。
-// それ以外は生成SVGのプレースホルダを使う。木口(koguchi)は全品目SVGのまま。
+// R2 に実写（main の JPG）をアップロード済みの製材済み品目。
+// 3D品目（hoonoki / magari-nara）は写真の main を 3Dポスター画像にする。
+// 追加写真（-2.jpg / -3.jpg）は upload-listing-photos.mjs で全品目にアップ済み。
 const REAL_PHOTO_SLUGS = new Set([
   'kaba', 'karamatsu', 'akamatsu', 'sugi', 'hinoki', 'kuri', 'udaikanba',
 ]);
 
-const photos = (slug) => {
+const PLACEHOLDER = '/placeholder.png';
+
+// 各出品の写真行を組み立てる。
+// 1枚目(main): 実写品目は seed-photos/<slug>-main.jpg、3D品目はポスター(<modelSlug>.png)。
+// 2枚目以降: seed-photos/<slug>-2.jpg, -3.jpg（upload-listing-photos.mjs でアップ済み）。
+// R2 未設定なら placeholder.png にフォールバック。
+const photos = (l) => {
   const base = R2_BASE.replace(/\/$/, '');
-  const real = R2_BASE && REAL_PHOTO_SLUGS.has(slug);
-  const mainUrl = real ? `${base}/seed-photos/${slug}-main.jpg` : `/seed/${slug}-main.svg`;
-  const mokumeUrl = real ? `${base}/seed-photos/${slug}-mokume.jpg` : `/seed/${slug}-mokume.svg`;
-  return [
-    { url: mainUrl, is_main: true, sort: 0 },
-    { url: `/seed/${slug}-koguchi.svg`, is_main: false, sort: 1 },
-    { url: mokumeUrl, is_main: false, sort: 2 },
-  ];
+  const slug = l.slug;
+
+  let mainUrl;
+  if (R2_BASE && l.modelSlug) {
+    mainUrl = `${base}/${l.modelSlug}.png`; // 3Dポスター
+  } else if (R2_BASE && REAL_PHOTO_SLUGS.has(slug)) {
+    mainUrl = `${base}/seed-photos/${slug}-main.jpg`;
+  } else {
+    mainUrl = PLACEHOLDER;
+  }
+
+  const rows = [{ url: mainUrl, is_main: true, sort: 0 }];
+  // 追加の板材写真（樹種の色味に合わせてアップ済み）
+  for (let i = 2; i <= 3; i++) {
+    rows.push({
+      url: R2_BASE ? `${base}/seed-photos/${slug}-${i}.jpg` : PLACEHOLDER,
+      is_main: false,
+      sort: i - 1,
+    });
+  }
+  return rows;
 };
 
 // ===== 11品目（src/data/seed.ts の seedListings と値を一致させること。slug は画像ファイル名用） =====
@@ -214,7 +234,7 @@ async function main() {
     if (error) throw error;
 
     const listingId = inserted.id;
-    const rows = photos(l.slug).map((p) => ({ ...p, listing_id: listingId }));
+    const rows = photos(l).map((p) => ({ ...p, listing_id: listingId }));
     const { error: pErr } = await admin.from('listing_photos').insert(rows);
     if (pErr) throw pErr;
     console.log(`  ✓ ${l.title} (${listingId})`);
