@@ -241,6 +241,27 @@ export const seedListings: Listing[] = [
     postedAt: '2026-05-16T09:00:00+09:00', // 約4週間前
   },
   {
+    id: 'takato-yamamuro',
+    sellerId: 'seller-morimoku',
+    title: '高遠町山室 スギ原木（3Dスキャン）',
+    species: 'スギ',
+    shape: 'irregular',
+    stock: 1,
+    price: 30000,
+    priceUnit: 'per_item',
+    minUnitLabel: '1本からOK',
+    status: 'published',
+    description:
+      '高遠町山室で伐採したスギ原木。3D Gaussian Splatting で実物の質感・色味・曲がりをそのまま確認できます。ドラッグでグリグリ回せます。',
+    heartwood: '赤身主体',
+    // 3D Gaussian Splatting（.ksplat, SH0圧縮済み・約2.8MB）。R2配信。
+    modelUrl:
+      'https://pub-0f7782ca86a54f1e8377c89f1a15ff21.r2.dev/models/takato-yamamuro.ksplat',
+    modelFormat: 'splat',
+    photos: [{ url: '/placeholder.png', isMain: true }],
+    postedAt: '2026-06-18T09:00:00+09:00', // 本日
+  },
+  {
     id: 'udaikanba',
     sellerId: 'seller-tenryu',
     title: 'ウダイカンバ 赤身一枚板',

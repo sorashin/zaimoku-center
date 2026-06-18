@@ -101,13 +101,17 @@ const photos = (l) => {
   }
 
   const rows = [{ url: mainUrl, is_main: true, sort: 0 }];
-  // 追加の板材写真（樹種の色味に合わせてアップ済み）
-  for (let i = 2; i <= 3; i++) {
-    rows.push({
-      url: R2_BASE ? `${base}/seed-photos/${slug}-${i}.jpg` : PLACEHOLDER,
-      is_main: false,
-      sort: i - 1,
-    });
+  // 板材写真を持たない 3D-only 品目（modelUrl 直指定）は追加写真を付けない。
+  // それ以外は seed-photos/<slug>-2.jpg, -3.jpg を参照（upload-listing-photos.mjs でアップ済み）。
+  const hasSeedPhotos = REAL_PHOTO_SLUGS.has(slug) || l.modelSlug;
+  if (hasSeedPhotos) {
+    for (let i = 2; i <= 3; i++) {
+      rows.push({
+        url: R2_BASE ? `${base}/seed-photos/${slug}-${i}.jpg` : PLACEHOLDER,
+        is_main: false,
+        sort: i - 1,
+      });
+    }
   }
   return rows;
 };
@@ -192,11 +196,15 @@ async function main() {
   console.log('▶ 出品を投入...');
   for (const l of LISTINGS) {
     const base = R2_BASE.replace(/\/$/, '');
-    const modelUrl = l.modelSlug
-      ? R2_BASE
-        ? `${base}/${l.modelSlug}.glb`
-        : `/models/${l.modelSlug}.glb`
-      : null;
+    // modelUrl が直接指定されていればそれを優先（.ksplat 等の任意URL）。
+    // 旧来の modelSlug 指定は R2 の <slug>.glb を組み立てる。
+    const modelUrl = l.modelUrl
+      ? l.modelUrl
+      : l.modelSlug
+        ? R2_BASE
+          ? `${base}/${l.modelSlug}.glb`
+          : `/models/${l.modelSlug}.glb`
+        : null;
     // ポスターも R2 が設定されていれば R2 公開URL（${modelSlug}.png）に揃える
     const posterUrl = l.posterUrl
       ? R2_BASE && l.modelSlug

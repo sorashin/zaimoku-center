@@ -10,6 +10,7 @@ import type {
   PriceUnit,
   ModelFormat,
 } from '@/lib/types';
+import { normalizeOrientation } from '@/lib/modelOrientation';
 import type { DataLayer, CreateListingInput, UpdateListingInput, CreatePurchaseRequestInput } from './types';
 import type { RuntimeEnv } from './index';
 
@@ -73,6 +74,7 @@ interface ListingRow {
   model_url: string | null;
   model_format: string | null;
   model_poster_url: string | null;
+  model_orientation: string | null;
   posted_at: string;
   listing_photos?: { url: string; is_main: boolean; sort: number }[];
 }
@@ -120,6 +122,7 @@ function toListing(row: ListingRow): Listing {
     modelUrl: row.model_url ?? undefined,
     modelFormat: (row.model_format as ModelFormat | null) ?? undefined,
     modelPosterUrl: row.model_poster_url ?? undefined,
+    modelOrientation: row.model_url ? normalizeOrientation(row.model_orientation) : undefined,
     photos: toPhotos(row.listing_photos),
     postedAt: row.posted_at,
   };
@@ -258,6 +261,7 @@ export function createSupabaseDataLayer(env?: RuntimeEnv): DataLayer {
         model_url: input.modelUrl ?? null,
         model_format: input.modelFormat ?? null,
         model_poster_url: input.modelPosterUrl ?? null,
+        model_orientation: input.modelOrientation ?? 'default',
       })
       .select('id')
       .single();
@@ -290,6 +294,7 @@ export function createSupabaseDataLayer(env?: RuntimeEnv): DataLayer {
     if (patch.modelUrl !== undefined) row.model_url = patch.modelUrl ?? null;
     if (patch.modelFormat !== undefined) row.model_format = patch.modelFormat ?? null;
     if (patch.modelPosterUrl !== undefined) row.model_poster_url = patch.modelPosterUrl ?? null;
+    if (patch.modelOrientation !== undefined) row.model_orientation = patch.modelOrientation ?? 'default';
 
     if (Object.keys(row).length > 0) {
       const { error } = await client.from('listings').update(row).eq('id', id);

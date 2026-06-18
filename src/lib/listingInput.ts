@@ -3,6 +3,7 @@
 
 import type { CreateListingInput, UpdateListingInput } from '@/lib/server/data';
 import type { ListingPhoto, Shape, PriceUnit, ModelFormat } from '@/lib/types';
+import { normalizeOrientation } from '@/lib/modelOrientation';
 
 /** 樹種の選択肢（「その他」は自由入力に切替） */
 export const SPECIES_OPTIONS = [
@@ -38,6 +39,7 @@ export interface ListingFormPayload {
   modelUrl?: unknown;
   modelFormat?: unknown;
   modelPosterUrl?: unknown;
+  modelOrientation?: unknown;
   photos?: unknown;
 }
 
@@ -148,6 +150,8 @@ export function validateListingPayload(
   }
   // 3Dモデルのプレビュー画像（あれば一覧サムネに使う）。モデルが無ければ無視。
   const modelPosterUrl = modelUrl ? str(payload.modelPosterUrl) || undefined : undefined;
+  // 向き補正プリセット。モデルが無ければ無視（default 相当）。
+  const modelOrientation = modelUrl ? normalizeOrientation(payload.modelOrientation) : undefined;
 
   const photos = normalizePhotos(payload.photos);
 
@@ -172,6 +176,7 @@ export function validateListingPayload(
     modelUrl,
     modelFormat,
     modelPosterUrl,
+    modelOrientation,
     photos,
   };
 

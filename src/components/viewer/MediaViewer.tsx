@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ModelFormat } from '@/lib/types';
+import type { ModelFormat, ModelOrientation } from '@/lib/types';
 import { onImgError, PLACEHOLDER_IMAGE } from '@/lib/image';
 import { ModelViewer } from './ModelViewer';
 
@@ -8,6 +8,7 @@ interface Props {
   photos: string[];
   modelUrl?: string;
   modelFormat?: ModelFormat;
+  modelOrientation?: ModelOrientation;
 }
 
 type Mode = '3d' | 'photo';
@@ -17,7 +18,7 @@ type Mode = '3d' | 'photo';
  * modelUrl があれば 3Dビューアをデフォルト表示し「3D（質感）⇔フォト」トグル＋サムネイル列。
  * modelUrl が無ければ横スワイプ写真ギャラリー（scroll-snap）。
  */
-export function MediaViewer({ title, photos, modelUrl, modelFormat }: Props) {
+export function MediaViewer({ title, photos, modelUrl, modelFormat, modelOrientation }: Props) {
   const has3d = Boolean(modelUrl);
   const [mode, setMode] = useState<Mode>(has3d ? '3d' : 'photo');
   // フォト時に表示する写真index
@@ -57,6 +58,7 @@ export function MediaViewer({ title, photos, modelUrl, modelFormat }: Props) {
           <ModelViewer
             url={modelUrl!}
             format={modelFormat}
+            orientation={modelOrientation}
             onFallback={() => setMode('photo')}
           />
         ) : (

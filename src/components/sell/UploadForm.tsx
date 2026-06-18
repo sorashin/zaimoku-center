@@ -1,6 +1,12 @@
 import { useRef, useState } from 'react';
 import { SPECIES_OPTIONS, modelFormatFromUrl } from '@/lib/listingInput';
-import type { Shape } from '@/lib/types';
+import { isGaussianSplatPly, compressPlyToKsplat } from '@/lib/splatCompress';
+import {
+  MODEL_ORIENTATION_OPTIONS,
+  MODEL_ORIENTATION_DEFAULT,
+} from '@/lib/modelOrientation';
+import { ModelViewer } from '@/components/viewer/ModelViewer';
+import type { ModelFormat, ModelOrientation, Shape } from '@/lib/types';
 
 // ===== 初期値（編集モード） =====
 export interface UploadFormInitial {
@@ -21,6 +27,8 @@ export interface UploadFormInitial {
   knots?: string;
   modelUrl?: string;
   modelFormat?: 'glb' | 'splat';
+  modelOrientation?: ModelOrientation;
+  modelPosterUrl?: string;
   photos: { url: string; isMain: boolean }[];
 }
 
@@ -88,8 +96,26 @@ export function UploadForm({ sellerName, initial }: Props) {
   const [modelSize, setModelSize] = useState<number | null>(null);
   const [modelSizeWarn, setModelSizeWarn] = useState(false);
   const [modelUploading, setModelUploading] = useState(false);
+  // .ply（Gaussian Splatting）をブラウザ内で .ksplat に圧縮中の状態メッセージ
+  const [modelCompressing, setModelCompressing] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const modelInputRef = useRef<HTMLInputElement>(null);
+
+  // モデルフォーマット（プレビューのビューア出し分け用）。URL から判定。
+  const modelFormat: ModelFormat | undefined = modelUrl
+    ? modelFormatFromUrl(modelUrl)
+    : undefined;
+
+  // 向き補正プリセット
+  const [modelOrientation, setModelOrientation] = useState<ModelOrientation>(
+    initial?.modelOrientation ?? MODEL_ORIENTATION_DEFAULT
+  );
+  // 生成済みのプレビュー画像（一覧サムネ用）。ビューアからキャプチャしてアップロード。
+  const [modelPosterUrl, setModelPosterUrl] = useState(initial?.modelPosterUrl ?? '');
+  const [posterSaving, setPosterSaving] = useState(false);
+  const [posterMsg, setPosterMsg] = useState<string | null>(null);
+  // ビューアが渡してくるキャプチャ関数（現在の表示を PNG dataURL で取得）。
+  const captureRef = useRef<(() => string | null) | null>(null);
 
   // 写真スロット（メイン + サブ2）
   const initialPhotos: PhotoSlot[] = [0, 1, 2].map((i) => ({
@@ -116,24 +142,58 @@ export function UploadForm({ sellerName, initial }: Props) {
       return;
     }
     setError('');
-    setModelName(file.name);
-    setModelSize(file.size);
-    setModelSizeWarn(file.size > MODEL_SIZE_WARN);
+
+    let uploadFile = file;
+
+    // .ply が 3D Gaussian Splatting 形式なら、アップロード前にブラウザ内で
+    // .ksplat（SH0圧縮）へ変換する。転送量・配信サイズが 1/4〜1/10 に減り、
+    // 閲覧時のロードも速くなる。通常メッシュ PLY はそのままアップロード。
+    if (ext === 'ply') {
+      try {
+        if (await isGaussianSplatPly(file)) {
+          setModelCompressing('3Dスキャンを配信用に軽量圧縮中…');
+          const { file: ksplat, originalBytes, compressedBytes } =
+            await compressPlyToKsplat(file, 0);
+          uploadFile = ksplat;
+          setModelCompressing(
+            `圧縮完了: ${fmtSize(originalBytes)} → ${fmtSize(compressedBytes)}`
+          );
+        }
+      } catch (e) {
+        setModelCompressing(null);
+        setError(
+          e instanceof Error
+            ? `3Dスキャンの圧縮に失敗しました: ${e.message}`
+            : '3Dスキャンの圧縮に失敗しました。'
+        );
+        return;
+      }
+    }
+
+    setModelName(uploadFile.name);
+    setModelSize(uploadFile.size);
+    setModelSizeWarn(uploadFile.size > MODEL_SIZE_WARN);
     setModelUploading(true);
     try {
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append('file', uploadFile);
       fd.append('kind', 'model');
       const res = await fetch('/api/upload', { method: 'POST', body: fd });
       const j = (await res.json()) as { url?: string; message?: string };
       if (!res.ok || !j.url) throw new Error(j.message || 'アップロードに失敗しました。');
       setModelUrl(j.url);
+      // 新しいモデルなので向き・プレビュー画像をリセット。
+      setModelOrientation(MODEL_ORIENTATION_DEFAULT);
+      setModelPosterUrl('');
+      setPosterMsg(null);
+      captureRef.current = null;
     } catch (e) {
       setError(e instanceof Error ? e.message : '3Dモデルのアップロードに失敗しました。');
       setModelName('');
       setModelSize(null);
     } finally {
       setModelUploading(false);
+      setModelCompressing(null);
     }
   }
 
@@ -142,7 +202,51 @@ export function UploadForm({ sellerName, initial }: Props) {
     setModelName('');
     setModelSize(null);
     setModelSizeWarn(false);
+    setModelOrientation(MODEL_ORIENTATION_DEFAULT);
+    setModelPosterUrl('');
+    setPosterMsg(null);
+    captureRef.current = null;
     if (modelInputRef.current) modelInputRef.current.value = '';
+  }
+
+  // dataURL(PNG) → File。ポスター画像のアップロード用。
+  function dataUrlToFile(dataUrl: string, name: string): File | null {
+    const m = /^data:(image\/[a-zA-Z+]+);base64,(.+)$/.exec(dataUrl);
+    if (!m) return null;
+    const mime = m[1]!;
+    const bin = atob(m[2]!);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new File([bytes], name, { type: mime });
+  }
+
+  // 現在のプレビュー表示をキャプチャして一覧サムネ用のプレビュー画像として保存する。
+  async function savePoster() {
+    const capture = captureRef.current;
+    if (!capture) {
+      setPosterMsg('プレビューの準備ができていません。少し待ってからお試しください。');
+      return;
+    }
+    setPosterSaving(true);
+    setPosterMsg(null);
+    try {
+      const dataUrl = capture();
+      if (!dataUrl) throw new Error('プレビュー画像を生成できませんでした。');
+      const file = dataUrlToFile(dataUrl, 'model-poster.png');
+      if (!file) throw new Error('プレビュー画像の変換に失敗しました。');
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('kind', 'photo');
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      const j = (await res.json()) as { url?: string; message?: string };
+      if (!res.ok || !j.url) throw new Error(j.message || 'プレビュー画像の保存に失敗しました。');
+      setModelPosterUrl(j.url);
+      setPosterMsg('この向きをプレビュー画像として保存しました。');
+    } catch (e) {
+      setPosterMsg(e instanceof Error ? e.message : 'プレビュー画像の保存に失敗しました。');
+    } finally {
+      setPosterSaving(false);
+    }
   }
 
   // ===== 写真選択 =====
@@ -182,6 +286,7 @@ export function UploadForm({ sellerName, initial }: Props) {
       if (!stock || Number(stock) < 1) return '在庫本数を入力してください。';
     }
     if (!price || Number(price) <= 0) return '価格を入力してください。';
+    if (modelCompressing) return '3Dスキャンの圧縮完了をお待ちください。';
     if (modelUploading) return '3Dモデルのアップロード完了をお待ちください。';
     if (photos.some((p) => p.uploading)) return '写真のアップロード完了をお待ちください。';
     return null;
@@ -218,6 +323,8 @@ export function UploadForm({ sellerName, initial }: Props) {
       knots: knots.trim() || undefined,
       modelUrl: modelUrl || undefined,
       modelFormat: modelUrl ? modelFormatFromUrl(modelUrl) : undefined,
+      modelOrientation: modelUrl ? modelOrientation : undefined,
+      modelPosterUrl: modelUrl ? modelPosterUrl || undefined : undefined,
       photos: photoList,
     };
   }
@@ -335,8 +442,9 @@ export function UploadForm({ sellerName, initial }: Props) {
         <h2 className={sectionTitle}>3Dモデル（任意）</h2>
         <p className="mt-1.5 text-[13px] leading-relaxed text-ink-sub">
           Scaniverse 等のスキャンアプリで書き出したファイルをそのままアップロードできます。
+          3D Gaussian Splatting の .ply は、配信用に自動で軽量圧縮（.ksplat）されます。
         </p>
-        {modelUrl || modelUploading ? (
+        {modelUrl || modelUploading || modelCompressing ? (
           <div className="mt-3.5 flex items-center gap-3 rounded-btn border border-hairline bg-surface-muted px-4 py-3.5">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="flex-shrink-0">
               <path d="M12 2.5L20 7v10l-8 4.5L4 17V7l8-4.5Z" stroke="#222222" strokeWidth="1.5" strokeLinejoin="round" />
@@ -345,14 +453,16 @@ export function UploadForm({ sellerName, initial }: Props) {
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[14px] font-medium">{modelName || '3Dモデル'}</span>
               <span className="block text-[12px] text-ink-sub">
-                {modelUploading
-                  ? 'アップロード中…'
-                  : modelSize !== null
-                    ? fmtSize(modelSize)
-                    : 'アップロード済み'}
+                {modelCompressing
+                  ? modelCompressing
+                  : modelUploading
+                    ? 'アップロード中…'
+                    : modelSize !== null
+                      ? fmtSize(modelSize)
+                      : 'アップロード済み'}
               </span>
             </span>
-            {!modelUploading && (
+            {!modelUploading && !modelCompressing && (
               <button
                 type="button"
                 onClick={clearModel}
@@ -407,6 +517,90 @@ export function UploadForm({ sellerName, initial }: Props) {
             if (f) void handleModelFile(f);
           }}
         />
+
+        {/* 3Dプレビュー＋向き調整（アップロード完了後） */}
+        {modelUrl && !modelUploading && !modelCompressing && (
+          <div className="mt-4">
+            <div className="relative aspect-[4/3] w-full overflow-hidden rounded-card bg-surface-muted">
+              <ModelViewer
+                key={modelUrl}
+                url={modelUrl}
+                format={modelFormat}
+                orientation={modelOrientation}
+                onReady={(capture) => {
+                  captureRef.current = capture;
+                }}
+              />
+            </div>
+
+            {/* 向きプリセット */}
+            <div className="mt-3">
+              <span className="block text-[13px] font-semibold">向きの補正</span>
+              <p className="mt-1 text-[12px] leading-relaxed text-ink-sub">
+                スキャンの向きが上下逆さま・横倒しのときは、ここで正位置に補正できます。
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {MODEL_ORIENTATION_OPTIONS.map((opt) => {
+                  const active = modelOrientation === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => {
+                        setModelOrientation(opt.value);
+                        // 向きを変えたらプレビュー画像は再生成が必要。
+                        setPosterMsg(null);
+                      }}
+                      className={`h-10 rounded-btn border px-3.5 text-[13px] font-semibold transition-colors ${
+                        active
+                          ? 'border-ink bg-ink text-surface'
+                          : 'border-border-strong bg-surface text-ink hover:bg-surface-muted'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* プレビュー画像（一覧サムネ）の保存 */}
+            <div className="mt-3.5 rounded-btn border border-hairline bg-surface-muted px-4 py-3.5">
+              <div className="flex items-center gap-3">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-semibold">一覧のサムネイル</span>
+                  <span className="mt-0.5 block text-[12px] leading-relaxed text-ink-sub">
+                    {modelPosterUrl
+                      ? 'この3Dモデルの見た目が一覧の1枚目に表示されます。'
+                      : '「この向きで保存」を押すと、3Dの見た目を一覧の1枚目サムネイルにできます。'}
+                  </span>
+                </span>
+                {modelPosterUrl && (
+                  <img
+                    src={modelPosterUrl}
+                    alt="プレビュー"
+                    className="h-12 w-12 flex-shrink-0 rounded-[8px] border border-hairline bg-surface object-cover"
+                  />
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => void savePoster()}
+                disabled={posterSaving}
+                className="mt-3 h-10 w-full rounded-btn border border-ink bg-surface text-[13px] font-semibold text-ink transition-colors hover:bg-surface-muted disabled:opacity-60"
+              >
+                {posterSaving
+                  ? '保存中…'
+                  : modelPosterUrl
+                    ? 'この向きで更新する'
+                    : 'この向きでサムネイルを保存'}
+              </button>
+              {posterMsg && (
+                <p className="mt-2 text-[12px] text-ink-sub">{posterMsg}</p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* 商品写真 */}
         <div className={sectionClass}>

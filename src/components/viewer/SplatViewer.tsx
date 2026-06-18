@@ -1,19 +1,53 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ModelOrientation } from '@/lib/modelOrientation';
+import { orientationToRadians } from '@/lib/modelOrientation';
 
 interface Props {
   url: string;
   onFallback?: () => void;
+  /** 向き補正プリセット（既定: 'default'） */
+  orientation?: ModelOrientation;
+  /**
+   * 現在の表示を PNG dataURL として取得する関数を親へ渡す。
+   * 出品フォームでのポスター画像キャプチャに使う。
+   */
+  onReady?: (capture: () => string | null) => void;
 }
 
 /**
- * Gaussian Splatting ビューア。@mkkellogg/gaussian-splats-3d の Viewer で
- * .ply/.splat/.ksplat を再生。自動回転・全画面・3Dバッジは GLB と同等のUI。
+ * 3D Gaussian Splatting ビューア。@mkkellogg/gaussian-splats-3d の Viewer で
+ * .ksplat（推奨・事前圧縮）/.ply/.splat を再生する。
+ *
+ * 配信は scripts/convert-splat.mjs で生 PLY を .ksplat（SH0, 16bit量子化）へ
+ * 事前圧縮したものを想定。実行時パースが不要なぶんロードが速い。生 PLY を
+ * 直接渡しても表示はできるが重いので非推奨。
+ *
+ * GLB ビューアと挙動を揃える: 自動回転（初回操作で恒久停止）、ローディング進捗、
+ * 操作ヒント、全画面、右下3Dバッジ。
+ *
+ * 外部レンダラ/カメラ/OrbitControls を自前で構築する。これにより
+ * (1) preserveDrawingBuffer でポスター画像をキャプチャでき、
+ * (2) splatMesh の rotation で向き補正を動的に適用できる。
  */
-export function SplatViewer({ url, onFallback }: Props) {
+export function SplatViewer({ url, onFallback, orientation, onReady }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [progress, setProgress] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const [showHint, setShowHint] = useState(true);
+
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
+  // splatMesh（THREE.Object3D）を保持し、orientation 変化時に回転だけ更新する。
+  const splatMeshRef = useRef<{ rotation: { set: (x: number, y: number, z: number) => void } } | null>(null);
+
+  // orientation の適用（再ロードなしで回転だけ更新）
+  useEffect(() => {
+    const mesh = splatMeshRef.current;
+    if (!mesh) return;
+    const [rx, ry, rz] = orientationToRadians(orientation);
+    mesh.rotation.set(rx, ry, rz);
+  }, [orientation, loaded]);
 
   useEffect(() => {
     let disposed = false;
@@ -37,41 +71,136 @@ export function SplatViewer({ url, onFallback }: Props) {
         return;
       }
 
+      const THREE = await import('three');
+      const { OrbitControls } = await import('three/examples/jsm/controls/OrbitControls.js');
       const GaussianSplats3D = await import('@mkkellogg/gaussian-splats-3d');
       if (disposed || !containerRef.current) return;
 
-      // selfDrivenMode + rootElement にビューアを描画。
+      const width = container.clientWidth || 1;
+      const height = container.clientHeight || 1;
+
+      // 外部レンダラ: preserveDrawingBuffer でポスター画像キャプチャを可能にする。
+      const renderer = new THREE.WebGLRenderer({
+        antialias: false,
+        preserveDrawingBuffer: true,
+      });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(width, height);
+      renderer.setClearColor(new THREE.Color(0x000000), 0);
+      container.appendChild(renderer.domElement);
+      renderer.domElement.style.display = 'block';
+      renderer.domElement.style.touchAction = 'none';
+
+      const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 500);
+      camera.position.set(0, 0.8, 3);
+      camera.up.set(0, 1, 0);
+      camera.lookAt(0, 0, 0);
+
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.08;
+      controls.autoRotate = false;
+      controls.autoRotateSpeed = 1.2;
+
+      // selfDrivenMode:false + 外部 renderer/camera で、描画ループは自前で回す。
       const viewer = new GaussianSplats3D.Viewer({
-        rootElement: container,
-        selfDrivenMode: true,
-        useBuiltInControls: true,
-        // 自動回転相当: 緩やかな初期回転。操作で停止する。
+        selfDrivenMode: false,
+        useBuiltInControls: false,
+        renderer,
+        camera,
+        sharedMemoryForWorkers: false, // COOP/COEP ヘッダ不要にする（Pages 配信向け）
         sphericalHarmonicsDegree: 0,
       });
 
-      const stopHint = () => setShowHint(false);
-      container.addEventListener('pointerdown', stopHint, { once: true });
-      container.addEventListener('touchstart', stopHint, { once: true });
+      // 初回操作で自動回転を恒久停止＋ヒント消去
+      const stopAuto = () => {
+        controls.autoRotate = false;
+        setShowHint(false);
+      };
+      renderer.domElement.addEventListener('pointerdown', stopAuto, { once: true });
+      renderer.domElement.addEventListener('touchstart', stopAuto, { once: true });
+      renderer.domElement.addEventListener('wheel', stopAuto, { once: true });
+
+      let raf = 0;
+      const renderOnce = () => {
+        controls.update();
+        viewer.update();
+        viewer.render();
+      };
+      const animate = () => {
+        raf = requestAnimationFrame(animate);
+        renderOnce();
+      };
+
+      const onResize = () => {
+        if (!containerRef.current) return;
+        const w = containerRef.current.clientWidth || 1;
+        const h = containerRef.current.clientHeight || 1;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+      };
+      window.addEventListener('resize', onResize);
 
       viewer
-        .addSplatScene(url, { showLoadingUI: false })
+        .addSplatScene(url, {
+          showLoadingUI: false,
+          progressiveLoad: true,
+          onProgress: (percent: number) => {
+            if (!disposed) setProgress(Math.round(percent));
+          },
+        })
         .then(() => {
           if (disposed) return;
+
+          // splatMesh に向き補正を適用。
+          const splatMesh = viewer.getSplatMesh?.();
+          if (splatMesh) {
+            splatMeshRef.current = splatMesh as unknown as {
+              rotation: { set: (x: number, y: number, z: number) => void };
+            };
+            const [rx, ry, rz] = orientationToRadians(orientation);
+            splatMesh.rotation.set(rx, ry, rz);
+          }
+
           setLoaded(true);
-          viewer.start();
+          controls.autoRotate = true;
+          animate();
+
+          // 親へポスター画像キャプチャ関数を渡す。
+          onReadyRef.current?.(() => {
+            try {
+              renderOnce();
+              return renderer.domElement.toDataURL('image/png');
+            } catch {
+              return null;
+            }
+          });
         })
         .catch(() => {
           if (!disposed) setError(true);
         });
 
       cleanup = () => {
-        container.removeEventListener('pointerdown', stopHint);
-        container.removeEventListener('touchstart', stopHint);
+        cancelAnimationFrame(raf);
+        splatMeshRef.current = null;
+        window.removeEventListener('resize', onResize);
+        renderer.domElement.removeEventListener('pointerdown', stopAuto);
+        renderer.domElement.removeEventListener('touchstart', stopAuto);
+        renderer.domElement.removeEventListener('wheel', stopAuto);
+        controls.dispose();
         try {
-          // ライブラリのクリーンアップ（renderer/シーンの破棄）
           viewer.dispose?.();
         } catch {
           // 破棄時のエラーは無視
+        }
+        try {
+          renderer.dispose();
+        } catch {
+          // 無視
+        }
+        if (renderer.domElement.parentNode) {
+          renderer.domElement.parentNode.removeChild(renderer.domElement);
         }
       };
     }
@@ -119,7 +248,9 @@ export function SplatViewer({ url, onFallback }: Props) {
 
       {!loaded && (
         <div className="absolute inset-0 flex items-center justify-center bg-surface-muted">
-          <div className="text-[13px] font-medium text-ink-sub">3Dモデルを読み込み中…</div>
+          <div className="text-[13px] font-medium text-ink-sub">
+            3Dモデルを読み込み中… {progress > 0 ? `${progress}%` : ''}
+          </div>
         </div>
       )}
 

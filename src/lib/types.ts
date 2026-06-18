@@ -1,5 +1,8 @@
 // ===== ドメイン型 =====
 
+import type { ModelOrientation } from './modelOrientation';
+export type { ModelOrientation };
+
 export type Shape = 'sawn' | 'irregular';
 export type ListingStatus = 'published' | 'closed' | 'sold';
 export type PriceUnit = 'per_m3' | 'per_item';
@@ -55,6 +58,8 @@ export interface Listing {
   modelFormat?: ModelFormat;
   /** 3Dモデルのプレビュー画像（一覧サムネ等に使用）。無ければ写真1枚目を使う */
   modelPosterUrl?: string;
+  /** 3Dモデルの向き補正プリセット（スキャンの上下逆さま等を正位置へ）。既定は 'default' */
+  modelOrientation?: ModelOrientation;
 
   photos: ListingPhoto[];
   /** ISO日時。表示は相対表記に変換 */

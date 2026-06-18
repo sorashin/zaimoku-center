@@ -1,4 +1,4 @@
-import type { ListingWithSeller } from './types';
+import type { ListingWithSeller, ModelOrientation } from './types';
 import {
   formatPrice,
   priceUnitLabel,
@@ -22,6 +22,7 @@ export interface DetailView {
   has3d: boolean;
   modelUrl?: string;
   modelFormat?: 'glb' | 'splat';
+  modelOrientation?: ModelOrientation;
   stock: number;
   price: number;
   /** 概算計算用の1本あたり材積（㎥）。sawn 以外は 0 */
@@ -85,6 +86,7 @@ export function toDetailView(listing: ListingWithSeller): DetailView {
     has3d: Boolean(listing.modelUrl),
     modelUrl: listing.modelUrl,
     modelFormat: listing.modelFormat,
+    modelOrientation: listing.modelOrientation,
     stock: listing.stock,
     price: listing.price,
     volumePerUnit: volumePerUnit(listing),

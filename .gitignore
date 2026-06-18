@@ -38,3 +38,9 @@ npm-debug.log*
 
 # 元素材（最適化前のChatGPT生成画像など。配信・コミット対象外）
 assets-src/
+
+# 3Dスキャン中間ファイル（生PLY・圧縮済みksplatはR2配信のためコミット対象外）
+# 既存の scan-*.glb はローカルフォールバック用に管理しているので除外しない。
+*.ply
+*.ksplat
+*.splat

@@ -1,9 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ModelOrientation } from '@/lib/modelOrientation';
+import { orientationToRadians } from '@/lib/modelOrientation';
 
 interface Props {
   url: string;
   /** 写真への切替導線（フォトモードへ） */
   onFallback?: () => void;
+  /** 向き補正プリセット（既定: 'default'） */
+  orientation?: ModelOrientation;
+  /**
+   * 現在の表示を PNG dataURL として取得する関数を親へ渡す。
+   * 出品フォームでのポスター画像キャプチャに使う。
+   */
+  onReady?: (capture: () => string | null) => void;
 }
 
 const DRACO_DECODER = 'https://www.gstatic.com/draco/versioned/decoders/1.5.7/';
@@ -13,12 +22,27 @@ const DRACO_DECODER = 'https://www.gstatic.com/draco/versioned/decoders/1.5.7/';
  * 自動回転（操作で恒久停止）、bounding box センタリング＆カメラフィット、リサイズ対応、
  * ローディング進捗、初回操作ヒント、全画面、右下3Dバッジ。
  */
-export function GlbViewer({ url, onFallback }: Props) {
+export function GlbViewer({ url, onFallback, orientation, onReady }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [progress, setProgress] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const [showHint, setShowHint] = useState(true);
+  // 最新の値を effect 内のクロージャから参照するための ref（再マウントを避ける）
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
+  // ロード済み model を保持し、orientation 変化時に回転だけ更新する。
+  const modelRef = useRef<{ rotation: { set: (x: number, y: number, z: number) => void } } | null>(null);
+  const requestRenderRef = useRef<(() => void) | null>(null);
+
+  // orientation の適用（モデル再ロードなしで回転だけ更新）
+  useEffect(() => {
+    const model = modelRef.current;
+    if (!model) return;
+    const [rx, ry, rz] = orientationToRadians(orientation);
+    model.rotation.set(rx, ry, rz);
+    requestRenderRef.current?.();
+  }, [orientation, loaded]);
 
   useEffect(() => {
     let disposed = false;
@@ -54,7 +78,13 @@ export function GlbViewer({ url, onFallback }: Props) {
       const width = container.clientWidth || 1;
       const height = container.clientHeight || 1;
 
-      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      // preserveDrawingBuffer: ポスター画像キャプチャ（toDataURL）で canvas が空に
+      // ならないようにするため。
+      const renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+        preserveDrawingBuffer: true,
+      });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.setSize(width, height);
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -114,12 +144,18 @@ export function GlbViewer({ url, onFallback }: Props) {
           if (disposed) return;
           const model = gltf.scene;
 
+          // 向き補正を先に適用してから bounding box を取る（回転後の実寸でフィット）。
+          const [rx, ry, rz] = orientationToRadians(orientation);
+          model.rotation.set(rx, ry, rz);
+          model.updateMatrixWorld(true);
+
           // bounding box センタリング＆カメラフィット
           const box = new THREE.Box3().setFromObject(model);
           const size = box.getSize(new THREE.Vector3());
           const center = box.getCenter(new THREE.Vector3());
           model.position.sub(center);
           scene.add(model);
+          modelRef.current = model;
 
           const maxDim = Math.max(size.x, size.y, size.z) || 1;
           const fov = (camera.fov * Math.PI) / 180;
@@ -131,8 +167,21 @@ export function GlbViewer({ url, onFallback }: Props) {
           controls.target.set(0, 0, 0);
           controls.update();
 
+          // orientation effect / キャプチャから1フレーム描画を要求できるようにする。
+          requestRenderRef.current = () => renderer.render(scene, camera);
+
           setLoaded(true);
           animate();
+
+          // 親へポスター画像キャプチャ関数を渡す。
+          onReadyRef.current?.(() => {
+            try {
+              renderer.render(scene, camera);
+              return renderer.domElement.toDataURL('image/png');
+            } catch {
+              return null;
+            }
+          });
         },
         (ev) => {
           if (ev.total > 0) {
@@ -146,6 +195,8 @@ export function GlbViewer({ url, onFallback }: Props) {
 
       cleanup = () => {
         cancelAnimationFrame(raf);
+        modelRef.current = null;
+        requestRenderRef.current = null;
         window.removeEventListener('resize', onResize);
         renderer.domElement.removeEventListener('pointerdown', stopAuto);
         renderer.domElement.removeEventListener('touchstart', stopAuto);
