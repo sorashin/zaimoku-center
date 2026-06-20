@@ -5,6 +5,14 @@ interface Props {
   items: ListingCardView[];
   /** カードhover連動で強調するピンのid（任意） */
   highlightedId?: string | null;
+  /** 選択中のピンid（カルーセル連動）。selected があると強調し flyTo する */
+  selectedId?: string | null;
+  /**
+   * ピンタップ時のハンドラ（任意）。
+   * 指定時は遷移せず onSelect を呼ぶ（モバイルのカルーセル連動用）。
+   * 未指定時は従来どおり詳細ページへ遷移する。
+   */
+  onSelect?: (id: string) => void;
   className?: string;
 }
 
@@ -13,11 +21,16 @@ const IINA_CENTER: [number, number] = [137.95, 35.72];
 const IINA_ZOOM = 9;
 
 /** 出品の所在地を価格ピル付きマーカーで表示する maplibre 地図。 */
-export function ListingsMap({ items, highlightedId, className }: Props) {
+export function ListingsMap({ items, highlightedId, selectedId, onSelect, className }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   // id -> マーカーのDOM要素（hover強調用）
   const markerEls = useRef<Map<string, HTMLElement>>(new Map());
-  const mapRef = useRef<unknown>(null);
+  const mapRef = useRef<import('maplibre-gl').Map | null>(null);
+  // id -> 座標（selected連動の flyTo 用）
+  const coords = useRef<Map<string, [number, number]>>(new Map());
+  // クリックハンドラから最新の onSelect を参照するための ref
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
 
   useEffect(() => {
     let cancelled = false;
@@ -81,10 +94,13 @@ export function ListingsMap({ items, highlightedId, className }: Props) {
         inner.appendChild(label);
         el.appendChild(inner);
         el.addEventListener('click', () => {
-          window.location.href = `/items/${item.id}`;
+          // onSelect 指定時は遷移せず選択（カルーセル連動）、未指定時は詳細へ
+          if (onSelectRef.current) onSelectRef.current(item.id);
+          else window.location.href = `/items/${item.id}`;
         });
 
         markerEls.current.set(item.id, inner);
+        coords.current.set(item.id, [item.seller.lng, item.seller.lat]);
 
         new maplibregl.Marker({ element: el, offset: [0, seen * 36] })
           .setLngLat([item.seller.lng, item.seller.lat])
@@ -104,12 +120,14 @@ export function ListingsMap({ items, highlightedId, className }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // hover連動: 強調ピンを拡大（inner要素にscaleを当て、位置transformを壊さない）
+  // hover/選択連動: 強調ピンを拡大（inner要素にscaleを当て、位置transformを壊さない）
+  // selectedId が優先（カルーセル連動）、なければ highlightedId（hover）
+  const activeId = selectedId ?? highlightedId;
   useEffect(() => {
     markerEls.current.forEach((inner, id) => {
       // maplibreが管理する外側マーカー要素（位置transform担当）
       const markerEl = inner.parentElement;
-      if (id === highlightedId) {
+      if (id === activeId) {
         inner.style.transform = 'scale(1.12)';
         inner.style.boxShadow = 'rgba(255,159,28,0.6) 0 0 0 2px, rgba(0,0,0,0.2) 0 4px 12px 0';
         if (markerEl) markerEl.style.zIndex = '5';
@@ -119,7 +137,16 @@ export function ListingsMap({ items, highlightedId, className }: Props) {
         if (markerEl) markerEl.style.zIndex = '';
       }
     });
-  }, [highlightedId]);
+  }, [activeId]);
+
+  // 選択中の出品へ地図を寄せる（カルーセルでカードを切り替えたとき）
+  useEffect(() => {
+    if (!selectedId) return;
+    const c = coords.current.get(selectedId);
+    if (c && mapRef.current) {
+      mapRef.current.flyTo({ center: c, zoom: Math.max(mapRef.current.getZoom(), 11), speed: 1.2 });
+    }
+  }, [selectedId]);
 
   return <div ref={containerRef} className={className} style={{ width: '100%', height: '100%' }} />;
 }

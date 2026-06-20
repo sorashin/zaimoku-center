@@ -8,6 +8,7 @@ import {
 } from '@/lib/listingInput';
 import type { UpdateListingInput } from '@/lib/server/data';
 import type { ListingStatus } from '@/lib/types';
+import { canEditListing } from '@/lib/permissions';
 
 export const prerender = false;
 
@@ -46,15 +47,11 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
   return json({ ok: true, id: created.id }, 200);
 };
 
-/** 出品の更新（seller + 所有チェック）。フルフォーム更新 or ステータスのみ変更。 */
+/** 出品の更新（自分の出品 or admin。権限は canEditListing に集約）。フルフォーム更新 or ステータスのみ変更。 */
 export const PATCH: APIRoute = async ({ request, cookies, locals }) => {
   const data = getData(locals.runtime?.env);
   const session = await getSession({ locals, cookies, request });
   if (!session.user) return json({ error: 'unauthorized' }, 401);
-  const sellerId = session.user.sellerProfile?.sellerId;
-  if (session.user.role !== 'seller' || !sellerId) {
-    return json({ error: 'forbidden' }, 403);
-  }
 
   let body: ListingFormPayload & { id?: unknown; status?: unknown; statusOnly?: unknown };
   try {
@@ -66,10 +63,10 @@ export const PATCH: APIRoute = async ({ request, cookies, locals }) => {
   const id = typeof body.id === 'string' ? body.id : '';
   if (!id) return json({ error: 'id_required' }, 400);
 
-  // 所有チェック: 全ステータスを対象に取得（getListing は status 問わず引ける）。
+  // 取得（getListing は status 問わず引ける）→ 編集権限チェック。
   const existing = await data.getListing(id);
   if (!existing) return json({ error: 'not_found' }, 404);
-  if (existing.sellerId !== sellerId) return json({ error: 'forbidden' }, 403);
+  if (!canEditListing(session.user, existing)) return json({ error: 'forbidden' }, 403);
 
   // ステータスのみ変更モード。
   if (body.statusOnly === true) {
@@ -81,8 +78,8 @@ export const PATCH: APIRoute = async ({ request, cookies, locals }) => {
     return json({ ok: true, id, status: updated?.status }, 200);
   }
 
-  // フルフォーム更新。
-  const result = validateListingPayload(body, sellerId);
+  // フルフォーム更新。出品者は既存を維持する（admin が他人の出品を編集しても所有者は変わらない）。
+  const result = validateListingPayload(body, existing.sellerId);
   if (!result.ok || !result.input) {
     return json({ error: 'validation', message: result.error }, 400);
   }
@@ -93,15 +90,11 @@ export const PATCH: APIRoute = async ({ request, cookies, locals }) => {
   return json({ ok: true, id: updated?.id }, 200);
 };
 
-/** 出品の削除（seller + 所有チェック）。 */
+/** 出品の削除（自分の出品 or admin。権限は canEditListing に集約）。 */
 export const DELETE: APIRoute = async ({ request, cookies, locals }) => {
   const data = getData(locals.runtime?.env);
   const session = await getSession({ locals, cookies, request });
   if (!session.user) return json({ error: 'unauthorized' }, 401);
-  const sellerId = session.user.sellerProfile?.sellerId;
-  if (session.user.role !== 'seller' || !sellerId) {
-    return json({ error: 'forbidden' }, 403);
-  }
 
   let body: { id?: unknown };
   try {
@@ -114,7 +107,7 @@ export const DELETE: APIRoute = async ({ request, cookies, locals }) => {
 
   const existing = await data.getListing(id);
   if (!existing) return json({ error: 'not_found' }, 404);
-  if (existing.sellerId !== sellerId) return json({ error: 'forbidden' }, 403);
+  if (!canEditListing(session.user, existing)) return json({ error: 'forbidden' }, 403);
 
   const ok = await data.deleteListing(id);
   return json({ ok }, 200);

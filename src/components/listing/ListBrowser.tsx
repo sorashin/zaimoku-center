@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ListingCardView } from '@/lib/listingView';
+import { onImgError, PLACEHOLDER_IMAGE } from '@/lib/image';
+import { FavoriteButton } from '@/components/FavoriteButton';
 import { ListingCard } from './ListingCard';
 import { ListingsMap } from '../map/ListingsMap';
 
@@ -47,6 +49,8 @@ export function ListBrowser({ items, savedIds = [], loggedIn = false }: Props) {
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   // モバイル: マップオーバーレイの開閉
   const [mapOpen, setMapOpen] = useState(false);
+  // モバイルマップ: カルーセルで選択中の出品id
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -122,7 +126,7 @@ export function ListBrowser({ items, savedIds = [], loggedIn = false }: Props) {
               条件に合う在庫が見つかりませんでした。
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-x-5 gap-y-8 px-4 pb-28 pt-2 sm:grid-cols-2 md:px-6 lg:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-6 px-4 pb-28 pt-2 sm:gap-x-5 sm:gap-y-8 md:px-6 lg:grid-cols-2 xl:grid-cols-3">
               {filtered.map((item, i) => (
                 <ListingCard
                   key={item.id}
@@ -172,19 +176,160 @@ export function ListBrowser({ items, savedIds = [], loggedIn = false }: Props) {
           className="fixed inset-0 z-50 lg:hidden"
           style={{ animation: 'overlayFadeIn 0.25s ease' }}
         >
-          <ListingsMap items={filtered} />
+          <ListingsMap
+            items={filtered}
+            selectedId={selectedId}
+            onSelect={(id) => setSelectedId(id)}
+          />
+
+          {/* リストに戻る（常時表示。カード選択中もカルーセルの下に出す） */}
           <button
             type="button"
-            onClick={() => setMapOpen(false)}
-            className="fixed bottom-6 left-1/2 z-[51] flex -translate-x-1/2 items-center gap-2 rounded-pill border-none bg-ink px-5 py-3.5 text-[14px] font-semibold text-white shadow-[rgba(0,0,0,0.2)_0_4px_12px_0]"
+            onClick={() => {
+              setMapOpen(false);
+              setSelectedId(null);
+            }}
+            className="fixed bottom-6 left-1/2 z-[52] flex -translate-x-1/2 items-center gap-2 rounded-pill border-none bg-ink px-5 py-3.5 text-[14px] font-semibold text-white shadow-[rgba(0,0,0,0.2)_0_4px_12px_0]"
           >
             リスト
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
               <path d="M1 3H13M1 7H13M1 11H13" stroke="#ffffff" strokeWidth="1.6" strokeLinecap="round" />
             </svg>
           </button>
+
+          {/* 下部カードカルーセル（チップタップで該当カードへ。リストボタンの上に配置） */}
+          {selectedId && (
+            <MapCarousel
+              items={filtered}
+              selectedId={selectedId}
+              onSelectedChange={setSelectedId}
+              savedSet={savedSet}
+              loggedIn={loggedIn}
+            />
+          )}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * モバイルマップ下部のカードカルーセル。
+ * - 横スクロール(scroll-snap)で1枚ずつ。スクロール位置 → selectedId を更新
+ * - selectedId 変更（チップタップ等）→ 該当カードへスクロール
+ */
+function MapCarousel({
+  items,
+  selectedId,
+  onSelectedChange,
+  savedSet,
+  loggedIn,
+}: {
+  items: ListingCardView[];
+  selectedId: string;
+  onSelectedChange: (id: string) => void;
+  savedSet: Set<string>;
+  loggedIn: boolean;
+}) {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  // プログラム由来のスクロール中は onScroll の selectedId 更新を抑止
+  const programmatic = useRef(false);
+
+  // selectedId 変更時に該当カードへスクロール
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const i = items.findIndex((it) => it.id === selectedId);
+    if (i < 0) return;
+    const card = el.children[i] as HTMLElement | undefined;
+    if (!card) return;
+    const target = card.offsetLeft - (el.clientWidth - card.clientWidth) / 2;
+    if (Math.abs(el.scrollLeft - target) < 4) return;
+    programmatic.current = true;
+    el.scrollTo({ left: target, behavior: 'smooth' });
+    const t = setTimeout(() => (programmatic.current = false), 400);
+    return () => clearTimeout(t);
+  }, [selectedId, items]);
+
+  const onScroll = () => {
+    if (programmatic.current) return;
+    const el = scrollerRef.current;
+    if (!el) return;
+    const center = el.scrollLeft + el.clientWidth / 2;
+    let nearest = 0;
+    let best = Infinity;
+    for (let i = 0; i < el.children.length; i++) {
+      const c = el.children[i] as HTMLElement;
+      const cardCenter = c.offsetLeft + c.clientWidth / 2;
+      const d = Math.abs(cardCenter - center);
+      if (d < best) {
+        best = d;
+        nearest = i;
+      }
+    }
+    const id = items[nearest]?.id;
+    if (id && id !== selectedId) onSelectedChange(id);
+  };
+
+  return (
+    <div className="fixed inset-x-0 bottom-[88px] z-[51]" style={{ animation: 'sheetUp 0.25s ease' }}>
+
+      <div
+        ref={scrollerRef}
+        onScroll={onScroll}
+        className="no-scrollbar flex gap-3 overflow-x-auto px-4 pb-5"
+        style={{ scrollSnapType: 'x mandatory' }}
+      >
+        {items.map((item) => (
+          <a
+            key={item.id}
+            href={`/items/${item.id}`}
+            className="flex w-[80vw] max-w-[340px] flex-shrink-0 gap-3 rounded-card border border-hairline bg-surface p-3 no-underline text-ink shadow-card"
+            style={{ scrollSnapAlign: 'center' }}
+          >
+            <img
+              src={item.mainPhoto || PLACEHOLDER_IMAGE}
+              alt={item.title}
+              onError={onImgError}
+              className="h-20 w-20 flex-shrink-0 rounded-btn object-cover"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="truncate text-[15px] font-semibold">{item.title}</span>
+                {item.isSawn && (
+                  <span className="whitespace-nowrap text-[12px] text-ink-sub">
+                    在庫 <span className="font-semibold text-ink">{item.stock}</span> 本
+                  </span>
+                )}
+              </div>
+              <div className="mt-0.5 truncate text-[12px] text-ink-sub">{item.dimensionsLabel}</div>
+              <div className="mt-1 text-[16px] font-semibold">
+                {item.priceLabel}
+                {item.unitLabel && (
+                  <span className="text-[12px] font-normal text-ink-sub">{item.unitLabel}</span>
+                )}
+              </div>
+              <div className="mt-1 flex items-center gap-1.5">
+                <span
+                  className="flex h-[22px] w-[22px] items-center justify-center rounded-pill text-[8px] font-bold leading-none text-white"
+                  style={{ background: item.seller.avatarColor }}
+                >
+                  {item.seller.shortLabel}
+                </span>
+                <span className="truncate text-[12px] font-medium">{item.seller.companyName}</span>
+              </div>
+            </div>
+            <div className="flex-shrink-0 self-start">
+              <FavoriteButton
+                listingId={item.id}
+                initialSaved={savedSet.has(item.id)}
+                loggedIn={loggedIn}
+                variant="detail"
+              />
+            </div>
+          </a>
+        ))}
+      </div>
     </div>
   );
 }

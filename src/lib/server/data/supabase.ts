@@ -218,6 +218,17 @@ export function createSupabaseDataLayer(env?: RuntimeEnv): DataLayer {
     return attachSellers(client, listings);
   },
 
+  async getAllListings() {
+    // 全出品者・全ステータス（admin 管理画面用）。service_role で RLS をバイパス。
+    const { data, error } = await client
+      .from('listings')
+      .select(LISTING_SELECT)
+      .order('posted_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    const listings = (data as ListingRow[]).map(toListing);
+    return attachSellers(client, listings);
+  },
+
   async getRelatedListings(listing, limit = 6) {
     const { data, error } = await client
       .from('listings')

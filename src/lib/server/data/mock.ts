@@ -88,6 +88,11 @@ export const mockDataLayer: DataLayer = {
     return applySort(filtered, 'newest').map(withSeller);
   },
 
+  async getAllListings() {
+    // 全出品者・全ステータス（admin 管理画面用）。
+    return applySort([...listings], 'newest').map(withSeller);
+  },
+
   async getRelatedListings(listing, limit = 6) {
     // 同じ出品者の他の材を優先、足りなければ同じ樹種
     const sameSeller = listings.filter(

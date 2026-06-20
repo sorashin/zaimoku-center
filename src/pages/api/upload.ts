@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getSession } from '@/lib/server/session';
 import { storeUpload, type UploadKind } from '@/lib/server/storage';
+import { canManageListings } from '@/lib/permissions';
 
 export const prerender = false;
 
@@ -23,7 +24,8 @@ function json(body: unknown, status: number): Response {
 export const POST: APIRoute = async ({ request, cookies, locals }) => {
   const session = await getSession({ locals, cookies, request });
   if (!session.user) return json({ error: 'unauthorized' }, 401);
-  if (session.user.role !== 'seller') return json({ error: 'forbidden' }, 403);
+  // seller（自分の出品）または admin（他人の出品の編集）が利用可能。
+  if (!canManageListings(session.user)) return json({ error: 'forbidden' }, 403);
 
   let form: FormData;
   try {

@@ -2,6 +2,7 @@
 import Base from '@/layouts/Base.astro';
 import { getSession } from '@/lib/server/session';
 import { getData } from '@/lib/server/data';
+import { canEditListing } from '@/lib/permissions';
 import { UploadForm, type UploadFormInitial } from '@/components/sell/UploadForm';
 
 export const prerender = false;
@@ -9,7 +10,6 @@ export const prerender = false;
 const data = getData(Astro.locals.runtime?.env);
 const session = await getSession(Astro);
 const user = session.user;
-const sellerId = user?.sellerProfile?.sellerId;
 const { id } = Astro.params;
 
 let initial: UploadFormInitial | null = null;
@@ -17,15 +17,13 @@ let denied: 'login' | 'role' | 'notfound' | 'forbidden' | null = null;
 
 if (!user) {
   denied = 'login';
-} else if (user.role !== 'seller' || !sellerId) {
-  denied = 'role';
 } else if (!id) {
   denied = 'notfound';
 } else {
   const listing = await data.getListing(id);
   if (!listing) {
     denied = 'notfound';
-  } else if (listing.sellerId !== sellerId) {
+  } else if (!canEditListing(user, listing)) {
     denied = 'forbidden';
   } else {
     initial = {

@@ -4,6 +4,7 @@ import { getData } from '@/lib/server/data';
 import { getSession } from '@/lib/server/session';
 import { toDetailView, buildSpecRows } from '@/lib/detailView';
 import { toCardView } from '@/lib/listingView';
+import { canEditListing } from '@/lib/permissions';
 import { MediaViewer } from '@/components/viewer/MediaViewer';
 import { MiniMap } from '@/components/map/MiniMap';
 import { FavoriteButton } from '@/components/FavoriteButton';
@@ -22,6 +23,8 @@ const session = await getSession(Astro);
 const loggedIn = Boolean(session.user);
 const savedIds = session.user ? await data.getFavoriteIds(session.user.id) : [];
 const initialSaved = savedIds.includes(listing.id);
+// 自分の出品 or admin なら「編集する」を出す（権限ロジックは canEditListing に集約）
+const canEdit = canEditListing(session.user, listing);
 
 const detail = toDetailView(listing);
 const specRows = buildSpecRows(listing);
@@ -44,22 +47,6 @@ const relatedCards = related.map(toCardView);
             modelOrientation={detail.modelOrientation}
             client:load
           />
-
-          {/* 戻る（左上） */}
-          <a
-            href="/"
-            aria-label="戻る"
-            class="absolute left-3.5 top-3.5 z-10 flex h-[38px] w-[38px] items-center justify-center rounded-pill bg-white no-underline shadow-[rgba(0,0,0,0.15)_0_2px_6px_0]"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path
-                d="M10 2.5L4.5 8L10 13.5"
-                stroke="#222222"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"></path>
-            </svg>
-          </a>
 
           {/* ハート（右上） */}
           <div class="absolute right-3.5 top-3.5 z-10">
@@ -149,7 +136,14 @@ const relatedCards = related.map(toCardView);
       {/* ===== 右: 情報パネル（デスクトップのみ・CTAカード） ===== */}
       <aside class="hidden lg:block lg:w-[38%]">
         <div class="sticky top-[73px]">
-          <RequestSheet detail={detail} loggedIn={loggedIn} layout="desktop" client:load />
+          <RequestSheet
+            detail={detail}
+            loggedIn={loggedIn}
+            canEdit={canEdit}
+            editHref={`/sell/edit/${detail.id}`}
+            layout="desktop"
+            client:load
+          />
         </div>
       </aside>
     </div>
@@ -189,8 +183,17 @@ const relatedCards = related.map(toCardView);
     }
   </div>
 
-  {/* ===== モバイル: sticky 下部バー ===== */}
+  {/* ===== モバイル: fixed 下部 ActionBar（常時表示） ===== */}
   <div class="lg:hidden">
-    <RequestSheet detail={detail} loggedIn={loggedIn} layout="mobile" client:load />
+    {/* ActionBar が fixed なので本文末尾がバー裏に隠れないようスペーサーを確保 */}
+    <div class="h-[84px]" style="height:calc(84px + env(safe-area-inset-bottom, 0px))"></div>
+    <RequestSheet
+      detail={detail}
+      loggedIn={loggedIn}
+      canEdit={canEdit}
+      editHref={`/sell/edit/${detail.id}`}
+      layout="mobile"
+      client:load
+    />
   </div>
 </Base>

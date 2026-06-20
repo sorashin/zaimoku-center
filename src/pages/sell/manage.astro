@@ -4,6 +4,7 @@ import { getSession } from '@/lib/server/session';
 import { getData } from '@/lib/server/data';
 import { ManageList, type ManageItem } from '@/components/sell/ManageList';
 import { formatPrice, priceUnitLabel } from '@/lib/format';
+import { isAdmin } from '@/lib/permissions';
 
 export const prerender = false;
 
@@ -11,10 +12,16 @@ const data = getData(Astro.locals.runtime?.env);
 const session = await getSession(Astro);
 const user = session.user;
 const sellerId = user?.sellerProfile?.sellerId;
+const admin = isAdmin(user);
+// 出品管理を使えるのは seller（自分の分）または admin（全件）。
+const canManage = admin || (user?.role === 'seller' && Boolean(sellerId));
 
 let items: ManageItem[] = [];
-if (user?.role === 'seller' && sellerId) {
-  const listings = await data.getSellerListings(sellerId, true);
+if (canManage) {
+  // admin は全出品者・全ステータス、seller は自分の出品（公開停止/売切れ含む）。
+  const listings = admin
+    ? await data.getAllListings()
+    : await data.getSellerListings(sellerId!, true);
   items = listings.map((l) => {
     const main = l.photos.find((p) => p.isMain) ?? l.photos[0];
     return {
@@ -27,6 +34,8 @@ if (user?.role === 'seller' && sellerId) {
       stockLine: l.shape === 'sawn' ? `在庫 ${l.stock} 本` : '一点物',
       status: l.status,
       thumb: main?.url ?? '',
+      // admin の横断管理では出品者名を併記
+      sellerName: admin ? l.seller.companyName : undefined,
     };
   });
 }
@@ -35,10 +44,10 @@ if (user?.role === 'seller' && sellerId) {
 <Base title="出品管理">
   <div class="mx-auto max-w-[640px] px-4 py-8 md:px-6">
     {
-      user?.role === 'seller' && sellerId ? (
+      canManage && user ? (
         <>
           <div class="flex items-center justify-between">
-            <h1 class="text-[21px] font-semibold">出品管理</h1>
+            <h1 class="text-[21px] font-semibold">{admin ? '出品管理（管理者）' : '出品管理'}</h1>
             <a
               href="/sell"
               class="inline-flex h-10 items-center gap-1.5 rounded-pill bg-primary px-4 text-[14px] font-bold text-ink no-underline transition-colors hover:bg-primary-active"
@@ -46,7 +55,9 @@ if (user?.role === 'seller' && sellerId) {
               ＋ 新規出品
             </a>
           </div>
-          <p class="mb-5 mt-1.5 text-[13px] text-ink-sub">{user.name}の出品一覧</p>
+          <p class="mb-5 mt-1.5 text-[13px] text-ink-sub">
+            {admin ? `全出品一覧（${items.length}件）` : `${user.name}の出品一覧`}
+          </p>
           <ManageList items={items} client:load />
         </>
       ) : !user ? (

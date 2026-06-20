@@ -28,6 +28,8 @@ export interface DataLayer {
   getListing(id: string): Promise<ListingWithSeller | null>;
   /** 出品者の出品一覧。includeAll=true で公開停止/売切れも含む（管理画面用）。 */
   getSellerListings(sellerId: string, includeAll?: boolean): Promise<ListingWithSeller[]>;
+  /** 全出品者の出品一覧（admin の横断管理画面用）。全ステータスを含む。 */
+  getAllListings(): Promise<ListingWithSeller[]>;
   getRelatedListings(listing: Listing, limit?: number): Promise<ListingWithSeller[]>;
 
   createListing(input: CreateListingInput): Promise<ListingWithSeller>;

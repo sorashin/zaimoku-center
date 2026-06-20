@@ -12,6 +12,8 @@ export interface ManageItem {
   stockLine: string;
   status: ListingStatus;
   thumb: string;
+  /** admin の横断管理時のみ設定。出品者名を併記する。 */
+  sellerName?: string;
 }
 
 interface Props {
@@ -124,6 +126,7 @@ export function ManageList({ items: initialItems }: Props) {
                 </span>
               </div>
               <div className="mt-0.5 truncate text-[12px] text-ink-sub">
+                {it.sellerName ? `${it.sellerName} ・ ` : ''}
                 {it.species} ・ {it.stockLine}
               </div>
               <div className="mt-0.5 text-[15px] font-bold">

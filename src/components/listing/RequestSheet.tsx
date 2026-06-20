@@ -5,7 +5,11 @@ import { onImgError, PLACEHOLDER_IMAGE } from '@/lib/image';
 interface Props {
   detail: DetailView;
   loggedIn: boolean;
-  /** mobile=sticky下部バー / desktop=右パネルCTAカード。各instanceが独立にシートを持つ。 */
+  /** 編集権限がある（自分の出品 or admin）。trueなら購入CTAを「編集する」に置換 */
+  canEdit?: boolean;
+  /** 編集ページへのリンク（canEdit時に使用） */
+  editHref?: string;
+  /** mobile=fixed下部ActionBar / desktop=右パネルCTAカード。各instanceが独立にシートを持つ。 */
   layout?: 'mobile' | 'desktop';
 }
 
@@ -18,7 +22,13 @@ function formatYen(n: number): string {
  * トリガーにボトムシートを開く。数量ステッパー・概算・送信→完了表示。
  * 未ログインなら送信前に /login へ誘導。
  */
-export function RequestSheet({ detail, loggedIn, layout = 'mobile' }: Props) {
+export function RequestSheet({
+  detail,
+  loggedIn,
+  canEdit = false,
+  editHref,
+  layout = 'mobile',
+}: Props) {
   const [open, setOpen] = useState(false);
   const [sent, setSent] = useState(false);
   const [qty, setQty] = useState(1);
@@ -81,8 +91,11 @@ export function RequestSheet({ detail, loggedIn, layout = 'mobile' }: Props) {
   return (
     <>
       {layout === 'mobile' ? (
-        /* ===== モバイル: sticky 下部バー ===== */
-        <div className="sticky bottom-0 z-20 flex items-center gap-3.5 border-t border-hairline bg-surface px-4 py-3.5">
+        /* ===== モバイル: fixed 下部 ActionBar（常時表示） ===== */
+        <div
+          className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-3.5 border-t border-hairline bg-surface px-4 py-3.5 lg:hidden"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 14px)' }}
+        >
           <div className="min-w-0 flex-1">
             <div className="text-[18px] font-bold">
               {detail.priceLabel}
@@ -92,13 +105,25 @@ export function RequestSheet({ detail, loggedIn, layout = 'mobile' }: Props) {
             </div>
             <div className="mt-0.5 text-[12px] text-ink-sub">{detail.stockLine}</div>
           </div>
-          <button
-            type="button"
-            onClick={openSheet}
-            className="whitespace-nowrap rounded-btn bg-primary px-6 py-3.5 text-[16px] font-bold text-ink transition-colors hover:bg-primary-active"
-          >
-            購入リクエスト
-          </button>
+          {canEdit ? (
+            <a
+              href={editHref}
+              className="flex items-center gap-1.5 whitespace-nowrap rounded-btn border border-ink bg-surface px-6 py-3.5 text-[16px] font-bold text-ink no-underline transition-colors hover:bg-surface-muted"
+            >
+              <svg width="17" height="17" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                <path d="M12.5 2.8l2.7 2.7-8.4 8.4-3.3.6.6-3.3 8.4-8.4z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+              </svg>
+              編集する
+            </a>
+          ) : (
+            <button
+              type="button"
+              onClick={openSheet}
+              className="whitespace-nowrap rounded-btn bg-primary px-6 py-3.5 text-[16px] font-bold text-ink transition-colors hover:bg-primary-active"
+            >
+              購入リクエスト
+            </button>
+          )}
         </div>
       ) : (
         /* ===== デスクトップ: 右パネル CTAカード ===== */
@@ -111,16 +136,35 @@ export function RequestSheet({ detail, loggedIn, layout = 'mobile' }: Props) {
           </div>
           <div className="mt-1 text-[13px] text-ink-sub">{detail.stockLine}</div>
           <div className="mt-1 text-[13px] text-ink-sub">{detail.minUnitLabel}</div>
-          <button
-            type="button"
-            onClick={openSheet}
-            className="mt-4 w-full rounded-btn bg-primary py-3.5 text-[16px] font-bold text-ink transition-colors hover:bg-primary-active"
-          >
-            購入リクエスト
-          </button>
-          <p className="mt-3 text-[12px] leading-relaxed text-ink-sub">
-            送信時点では支払いは発生しません。{detail.seller.companyName}が在庫と引き渡し方法を確認のうえ、正式な金額を返信します。
-          </p>
+          {canEdit ? (
+            <>
+              <a
+                href={editHref}
+                className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-btn border border-ink bg-surface py-3.5 text-[16px] font-bold text-ink no-underline transition-colors hover:bg-surface-muted"
+              >
+                <svg width="17" height="17" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                  <path d="M12.5 2.8l2.7 2.7-8.4 8.4-3.3.6.6-3.3 8.4-8.4z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+                </svg>
+                編集する
+              </a>
+              <p className="mt-3 text-[12px] leading-relaxed text-ink-sub">
+                この出品はあなたが編集できます。内容・在庫・価格を更新できます。
+              </p>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={openSheet}
+                className="mt-4 w-full rounded-btn bg-primary py-3.5 text-[16px] font-bold text-ink transition-colors hover:bg-primary-active"
+              >
+                購入リクエスト
+              </button>
+              <p className="mt-3 text-[12px] leading-relaxed text-ink-sub">
+                送信時点では支払いは発生しません。{detail.seller.companyName}が在庫と引き渡し方法を確認のうえ、正式な金額を返信します。
+              </p>
+            </>
+          )}
         </div>
       )}
 
