@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type {
   Listing,
   ListingPhoto,
+  ListingVariant,
   ListingWithSeller,
   PurchaseRequest,
   Seller,
@@ -11,6 +12,7 @@ import type {
   ModelFormat,
 } from '@/lib/types';
 import { normalizeOrientation } from '@/lib/modelOrientation';
+import { mirrorFromVariants } from '@/lib/format';
 import type { DataLayer, CreateListingInput, UpdateListingInput, CreatePurchaseRequestInput } from './types';
 import type { RuntimeEnv } from './index';
 
@@ -77,6 +79,19 @@ interface ListingRow {
   model_orientation: string | null;
   posted_at: string;
   listing_photos?: { url: string; is_main: boolean; sort: number }[];
+  listing_variants?: ListingVariantRow[];
+}
+
+interface ListingVariantRow {
+  id: string;
+  length_mm: number | null;
+  width_mm: number | null;
+  thickness_mm: number | null;
+  stock: number;
+  price: number;
+  price_unit: PriceUnit;
+  label: string | null;
+  sort: number;
 }
 
 function toSeller(row: ProfileRow): Seller {
@@ -99,6 +114,25 @@ function toPhotos(rows?: { url: string; is_main: boolean; sort: number }[]): Lis
     .map((p) => ({ url: p.url, isMain: p.is_main }));
 }
 
+function toVariant(row: ListingVariantRow): ListingVariant {
+  return {
+    id: row.id,
+    lengthMm: row.length_mm ?? 0,
+    widthMm: row.width_mm ?? 0,
+    thicknessMm: row.thickness_mm ?? 0,
+    stock: row.stock,
+    price: row.price,
+    priceUnit: row.price_unit,
+    label: row.label ?? undefined,
+    sort: row.sort,
+  };
+}
+
+function toVariants(rows?: ListingVariantRow[]): ListingVariant[] {
+  if (!rows) return [];
+  return [...rows].sort((a, b) => a.sort - b.sort).map(toVariant);
+}
+
 function toListing(row: ListingRow): Listing {
   return {
     id: row.id,
@@ -112,6 +146,7 @@ function toListing(row: ListingRow): Listing {
     stock: row.stock,
     price: row.price,
     priceUnit: row.price_unit,
+    variants: toVariants(row.listing_variants),
     minUnitLabel: row.min_unit_label,
     status: row.status,
     description: row.description ?? undefined,
@@ -128,7 +163,8 @@ function toListing(row: ListingRow): Listing {
   };
 }
 
-const LISTING_SELECT = '*, listing_photos(url, is_main, sort)';
+const LISTING_SELECT =
+  '*, listing_photos(url, is_main, sort), listing_variants(id, length_mm, width_mm, thickness_mm, stock, price, price_unit, label, sort)';
 
 // 出品者情報をまとめて引いて結合（N+1 回避）。
 async function attachSellers(
@@ -249,6 +285,9 @@ export function createSupabaseDataLayer(env?: RuntimeEnv): DataLayer {
   },
 
   async createListing(input) {
+    // sawn は variants からミラー値（先頭寸法・在庫合計・最安価格）を算出して listings 本体へ反映。
+    const variants = input.variants ?? [];
+    const mirror = input.shape === 'sawn' ? mirrorFromVariants(variants) : null;
     const { data, error } = await client
       .from('listings')
       .insert({
@@ -262,6 +301,8 @@ export function createSupabaseDataLayer(env?: RuntimeEnv): DataLayer {
         stock: input.stock,
         price: input.price,
         price_unit: input.priceUnit,
+        // sawn はミラー列で上書き（snake_case）。irregular は上の単一値のまま。
+        ...mirrorColumns(mirror),
         min_unit_label: input.minUnitLabel,
         status: input.status,
         description: input.description ?? null,
@@ -279,6 +320,7 @@ export function createSupabaseDataLayer(env?: RuntimeEnv): DataLayer {
     if (error) throw new Error(error.message);
     const id = (data as { id: string }).id;
     await replacePhotos(client, id, input.photos);
+    await replaceVariants(client, id, variants);
     const result = await layer.getListing(id);
     if (!result) throw new Error('作成後の取得に失敗しました。');
     return result;
@@ -295,6 +337,10 @@ export function createSupabaseDataLayer(env?: RuntimeEnv): DataLayer {
     if (patch.stock !== undefined) row.stock = patch.stock;
     if (patch.price !== undefined) row.price = patch.price;
     if (patch.priceUnit !== undefined) row.price_unit = patch.priceUnit;
+    // variants が来たら listings 側のミラー値（先頭寸法・在庫合計・最安価格）も更新する。
+    if (patch.variants !== undefined) {
+      Object.assign(row, mirrorColumns(mirrorFromVariants(patch.variants)));
+    }
     if (patch.minUnitLabel !== undefined) row.min_unit_label = patch.minUnitLabel;
     if (patch.status !== undefined) row.status = patch.status;
     if (patch.description !== undefined) row.description = patch.description ?? null;
@@ -313,6 +359,9 @@ export function createSupabaseDataLayer(env?: RuntimeEnv): DataLayer {
     }
     if (patch.photos !== undefined) {
       await replacePhotos(client, id, patch.photos);
+    }
+    if (patch.variants !== undefined) {
+      await replaceVariants(client, id, patch.variants);
     }
     return layer.getListing(id);
   },
@@ -374,6 +423,7 @@ export function createSupabaseDataLayer(env?: RuntimeEnv): DataLayer {
       .from('purchase_requests')
       .insert({
         listing_id: input.listingId,
+        variant_id: input.variantId ?? null,
         buyer_id: input.buyerId,
         qty: input.qty,
         estimated_total: input.estimatedTotal,
@@ -385,6 +435,7 @@ export function createSupabaseDataLayer(env?: RuntimeEnv): DataLayer {
     const row = data as {
       id: string;
       listing_id: string;
+      variant_id: string | null;
       buyer_id: string;
       qty: number;
       estimated_total: number;
@@ -395,6 +446,7 @@ export function createSupabaseDataLayer(env?: RuntimeEnv): DataLayer {
     return {
       id: row.id,
       listingId: row.listing_id,
+      variantId: row.variant_id ?? undefined,
       buyerId: row.buyer_id,
       qty: row.qty,
       estimatedTotal: row.estimated_total,
@@ -423,6 +475,46 @@ async function replacePhotos(
   }));
   const { error } = await client.from('listing_photos').insert(rows);
   if (error) throw new Error(`listing_photos 挿入失敗: ${error.message}`);
+}
+
+/** ミラー値を listings の snake_case 列へ展開する。null（irregular 等）なら空オブジェクト。 */
+function mirrorColumns(
+  mirror: ReturnType<typeof mirrorFromVariants>
+): Record<string, unknown> {
+  if (!mirror) return {};
+  return {
+    length_mm: mirror.lengthMm,
+    width_mm: mirror.widthMm,
+    thickness_mm: mirror.thicknessMm,
+    stock: mirror.stock,
+    price: mirror.price,
+    price_unit: mirror.priceUnit,
+  };
+}
+
+/** バリエーションを一括置換（編集時は既存削除→再挿入）。sort を 0 から振り直す。 */
+async function replaceVariants(
+  client: SupabaseClient,
+  listingId: string,
+  variants: ListingVariant[]
+): Promise<void> {
+  await client.from('listing_variants').delete().eq('listing_id', listingId);
+  if (variants.length === 0) return;
+  const rows = [...variants]
+    .sort((a, b) => a.sort - b.sort)
+    .map((v, i) => ({
+      listing_id: listingId,
+      length_mm: v.lengthMm,
+      width_mm: v.widthMm,
+      thickness_mm: v.thicknessMm,
+      stock: v.stock,
+      price: v.price,
+      price_unit: v.priceUnit,
+      label: v.label ?? null,
+      sort: i,
+    }));
+  const { error } = await client.from('listing_variants').insert(rows);
+  if (error) throw new Error(`listing_variants 挿入失敗: ${error.message}`);
 }
 
 // 型輸入の未使用警告回避（型のみ参照）。

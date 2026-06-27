@@ -7,6 +7,7 @@ import type {
   Seller,
 } from '@/lib/types';
 import { seedListings, seedSellers } from '@/data/seed';
+import { mirrorFromVariants } from '@/lib/format';
 import type { DataLayer } from './types';
 
 // ===== インメモリストア =====
@@ -110,10 +111,15 @@ export const mockDataLayer: DataLayer = {
   },
 
   async createListing(input) {
+    // sawn は variants からミラー値（先頭寸法・在庫合計・最安価格）を listings 本体へ反映。
+    const variants = input.variants ?? [];
+    const mirror = input.shape === 'sawn' ? mirrorFromVariants(variants) : null;
     const listing: Listing = {
       ...input,
+      ...(mirror ?? {}),
       id: nextId('listing'),
       photos: [...input.photos],
+      variants: [...variants],
       postedAt: new Date().toISOString(),
     };
     listings.unshift(listing);
@@ -124,11 +130,15 @@ export const mockDataLayer: DataLayer = {
     const idx = listings.findIndex((l) => l.id === id);
     if (idx === -1) return null;
     const existing = listings[idx]!;
+    // variants が来たらミラー値も更新する。
+    const mirror = patch.variants !== undefined ? mirrorFromVariants(patch.variants) : null;
     const updated: Listing = {
       ...existing,
       ...patch,
+      ...(mirror ?? {}),
       id: existing.id,
       photos: patch.photos ? [...patch.photos] : existing.photos,
+      variants: patch.variants ? [...patch.variants] : existing.variants,
     };
     listings[idx] = updated;
     return withSeller(updated);

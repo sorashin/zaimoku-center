@@ -2,8 +2,9 @@
 // クライアント（UploadForm）とサーバー（/api/listings）の双方から利用する。
 
 import type { CreateListingInput, UpdateListingInput } from '@/lib/server/data';
-import type { ListingPhoto, Shape, PriceUnit, ModelFormat } from '@/lib/types';
+import type { ListingPhoto, ListingVariant, Shape, PriceUnit, ModelFormat } from '@/lib/types';
 import { normalizeOrientation } from '@/lib/modelOrientation';
+import { mirrorFromVariants } from '@/lib/format';
 
 /** 樹種の選択肢（「その他」は自由入力に切替） */
 export const SPECIES_OPTIONS = [
@@ -30,6 +31,8 @@ export interface ListingFormPayload {
   thicknessMm?: unknown;
   stock?: unknown;
   price?: unknown;
+  /** 寸法・在庫・価格パターン（sawn）。新フォームはこちらを送る。 */
+  variants?: unknown;
   minUnitLabel?: unknown;
   description?: unknown;
   moisture?: unknown;
@@ -90,6 +93,77 @@ function normalizePhotos(raw: unknown): ListingPhoto[] {
   return photos;
 }
 
+/** バリエーション正規化の結果。 */
+interface VariantsResult {
+  ok: boolean;
+  error?: string;
+  variants?: ListingVariant[];
+}
+
+/**
+ * sawn のパターン配列を検証・正規化する。
+ * 各パターンは 長手・短手・厚み・在庫・価格 が必須で正の数。価格単位は per_m3|per_item。
+ * 後方互換: variants が無い旧フォーム（単一寸法）は payload の単一値から1パターンを生成。
+ */
+function normalizeVariants(payload: ListingFormPayload): VariantsResult {
+  const raw = payload.variants;
+  let list: unknown[];
+  if (Array.isArray(raw) && raw.length > 0) {
+    list = raw;
+  } else {
+    // 旧形式フォールバック: 単一寸法から1パターン。
+    list = [
+      {
+        lengthMm: payload.lengthMm,
+        widthMm: payload.widthMm,
+        thicknessMm: payload.thicknessMm,
+        stock: payload.stock,
+        price: payload.price,
+      },
+    ];
+  }
+
+  const variants: ListingVariant[] = [];
+  for (let i = 0; i < list.length; i++) {
+    const item = list[i];
+    if (!item || typeof item !== 'object') {
+      return { ok: false, error: `パターン${i + 1}の入力が不正です。` };
+    }
+    const o = item as Record<string, unknown>;
+    const lengthMm = num(o.lengthMm);
+    const widthMm = num(o.widthMm);
+    const thicknessMm = num(o.thicknessMm);
+    if (!lengthMm || !widthMm || !thicknessMm) {
+      return { ok: false, error: `パターン${i + 1}の寸法（長手・短手・厚み）を入力してください。` };
+    }
+    if (lengthMm <= 0 || widthMm <= 0 || thicknessMm <= 0) {
+      return { ok: false, error: `パターン${i + 1}の寸法は正の数で入力してください。` };
+    }
+    const s = num(o.stock);
+    if (!s || s < 1) {
+      return { ok: false, error: `パターン${i + 1}の在庫本数を入力してください。` };
+    }
+    const p = num(o.price);
+    if (p === undefined || p <= 0) {
+      return { ok: false, error: `パターン${i + 1}の価格を入力してください。` };
+    }
+    const unitRaw = str(o.priceUnit);
+    const priceUnit: PriceUnit = unitRaw === 'per_item' ? 'per_item' : 'per_m3';
+    const label = str(o.label) || undefined;
+    variants.push({
+      lengthMm,
+      widthMm,
+      thicknessMm,
+      stock: Math.floor(s),
+      price: Math.round(p),
+      priceUnit,
+      label,
+      sort: i,
+    });
+  }
+  return { ok: true, variants };
+}
+
 /**
  * 生ペイロードを検証し CreateListingInput を組み立てる。
  * sellerId は呼び出し側（API）でセッションから付与する。
@@ -106,36 +180,33 @@ export function validateListingPayload(
 
   const shape: Shape = payload.shape === 'irregular' ? 'irregular' : 'sawn';
 
+  // ミラー値（listings 本体へ保存）。sawn は variants から算出、irregular は単一値。
   let lengthMm: number | undefined;
   let widthMm: number | undefined;
   let thicknessMm: number | undefined;
   let stock = 1;
+  let price: number;
   let priceUnit: PriceUnit;
+  let variants: ListingVariant[] = [];
 
   if (shape === 'sawn') {
-    lengthMm = num(payload.lengthMm);
-    widthMm = num(payload.widthMm);
-    thicknessMm = num(payload.thicknessMm);
-    if (!lengthMm || !widthMm || !thicknessMm) {
-      return { ok: false, error: '寸法（長手・短手・厚み）を入力してください。' };
+    const vr = normalizeVariants(payload);
+    if (!vr.ok || !vr.variants) {
+      return { ok: false, error: vr.error };
     }
-    if (lengthMm <= 0 || widthMm <= 0 || thicknessMm <= 0) {
-      return { ok: false, error: '寸法は正の数で入力してください。' };
-    }
-    const s = num(payload.stock);
-    if (!s || s < 1) {
-      return { ok: false, error: '在庫本数を入力してください。' };
-    }
-    stock = Math.floor(s);
-    priceUnit = 'per_m3';
+    variants = vr.variants;
+    // 先頭寸法・在庫合計・最安価格をミラー（規則は format.ts の mirrorFromVariants に集約）。
+    const m = mirrorFromVariants(variants)!; // variants は1件以上が保証される
+    ({ lengthMm, widthMm, thicknessMm, stock, price, priceUnit } = m);
   } else {
+    // irregular: 一点物。単一価格のみ。
     stock = 1;
     priceUnit = 'per_item';
+    const p = num(payload.price);
+    if (p === undefined) return { ok: false, error: '価格を入力してください。' };
+    if (p <= 0) return { ok: false, error: '価格は正の数で入力してください。' };
+    price = Math.round(p);
   }
-
-  const price = num(payload.price);
-  if (price === undefined) return { ok: false, error: '価格を入力してください。' };
-  if (price <= 0) return { ok: false, error: '価格は正の数で入力してください。' };
 
   const minUnitLabel = str(payload.minUnitLabel) || '1本からOK';
 
@@ -164,8 +235,9 @@ export function validateListingPayload(
     widthMm,
     thicknessMm,
     stock,
-    price: Math.round(price),
+    price,
     priceUnit,
+    variants,
     minUnitLabel,
     status: 'published',
     description: str(payload.description) || undefined,

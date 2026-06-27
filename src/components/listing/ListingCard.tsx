@@ -71,25 +71,28 @@ export function ListingCard({
       </div>
 
       <div className="mt-3">
-        <div className="flex items-center gap-2">
-          <span className="text-[17px] font-semibold">{item.title}</span>
+        {/* タイトルブロック（タイトル＋在庫） */}
+        <div className="flex items-baseline gap-2">
+          <span className="min-w-0 truncate text-[17px] font-semibold">{item.title}</span>
           {item.isSawn && (
-            <span className="whitespace-nowrap text-[13px] text-ink-sub">
+            <span className="flex-shrink-0 whitespace-nowrap text-[13px] text-ink-sub">
               在庫 <span className="text-[16px] font-semibold text-ink">{item.stock}</span> 本
             </span>
           )}
-          <span className="ml-auto flex items-center gap-1.5">
-            <span
-              className="flex h-[26px] w-[26px] items-center justify-center rounded-pill text-[8px] font-bold leading-none text-white"
-              style={{ background: item.seller.avatarColor }}
-            >
-              {item.seller.shortLabel}
-            </span>
-            <span className="text-[13px] font-medium">{item.seller.companyName}</span>
-          </span>
         </div>
 
-        <div className="mt-1 text-[13px] text-ink-sub">{item.dimensionsLabel}</div>
+        {/* 出品者ブロック */}
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <span
+            className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-pill text-[8px] font-bold leading-none text-white"
+            style={{ background: item.seller.avatarColor }}
+          >
+            {item.seller.shortLabel}
+          </span>
+          <span className="truncate text-[13px] font-medium">{item.seller.companyName}</span>
+        </div>
+
+        <div className="mt-1.5 text-[13px] text-ink-sub">{item.dimensionsLabel}</div>
 
         <div className="mt-1.5 text-[18px] font-semibold">
           {item.priceLabel}

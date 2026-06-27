@@ -9,6 +9,7 @@ import { MediaViewer } from '@/components/viewer/MediaViewer';
 import { MiniMap } from '@/components/map/MiniMap';
 import { FavoriteButton } from '@/components/FavoriteButton';
 import { RequestSheet } from '@/components/listing/RequestSheet';
+import { VariantPicker } from '@/components/listing/VariantPicker';
 import { ONERROR_FALLBACK, PLACEHOLDER_IMAGE } from '@/lib/image';
 
 const data = getData(Astro.locals.runtime?.env);
@@ -79,6 +80,13 @@ const relatedCards = related.map(toCardView);
             </span>
           </div>
         </div>
+
+        {/* --- 寸法・在庫・価格パターン選択（複数パターン時のみ） --- */}
+        {
+          detail.hasMultipleVariants && (
+            <VariantPicker listingId={detail.id} variants={detail.variants} client:load />
+          )
+        }
 
         {/* --- スペック表 --- */}
         <div class="mx-4 mt-6 border-t border-hairline pt-5 md:mx-0">

@@ -94,6 +94,16 @@ textarea::placeholder {
   }
 }
 
+/* カートドロワーの右スライドイン */
+@keyframes drawerInRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
 /* スクロールバー非表示ユーティリティ */
 .no-scrollbar {
   scrollbar-width: none;
