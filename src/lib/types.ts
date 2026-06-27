@@ -25,6 +25,25 @@ export interface Seller {
   bio?: string;
 }
 
+/**
+ * 出品の寸法・在庫・価格パターン（バリエーション）。
+ * sawn の出品は 1件以上持つ。irregular は持たない（空配列）。
+ */
+export interface ListingVariant {
+  /** 既存パターンの id。新規入力時は未採番（undefined）。 */
+  id?: string;
+  lengthMm: number;
+  widthMm: number;
+  thicknessMm: number;
+  stock: number;
+  price: number;
+  priceUnit: PriceUnit;
+  /** 任意の表示名。無ければ寸法から自動生成して表示する。 */
+  label?: string;
+  /** 表示順。0 がデフォルト（先頭）。 */
+  sort: number;
+}
+
 /** 出品商品 */
 export interface Listing {
   id: string;
@@ -33,14 +52,19 @@ export interface Listing {
   species: string;
   shape: Shape;
 
-  // 寸法（sawn のみ・mm）
+  // 寸法（sawn のみ・mm）。後方互換: 先頭パターンの値をミラー。
   lengthMm?: number;
   widthMm?: number;
   thicknessMm?: number;
 
+  // 在庫・価格は後方互換のミラー値:
+  //   stock = 全パターンの在庫合計 / price = 最安パターンの価格 / priceUnit = 最安パターンの単位
   stock: number;
   price: number;
   priceUnit: PriceUnit;
+
+  /** 寸法・在庫・価格パターン（sawn のみ非空。irregular は空配列）。 */
+  variants: ListingVariant[];
   /** 最小取引単位バッジ（例: 1本からOK） */
   minUnitLabel: string;
   status: ListingStatus;
@@ -75,6 +99,8 @@ export interface ListingPhoto {
 export interface PurchaseRequest {
   id: string;
   listingId: string;
+  /** どのパターンに対するリクエストか（sawn の複数パターン時）。無ければ listing 全体。 */
+  variantId?: string;
   buyerId: string;
   qty: number;
   estimatedTotal: number;

@@ -11,6 +11,8 @@ interface ImportMetaEnv {
   readonly R2_BUCKET?: string;
   readonly R2_PUBLIC_BASE_URL?: string;
   readonly RESEND_API_KEY?: string;
+  /** まとめ購入リクエストの通知先（運営アドレス） */
+  readonly ADMIN_NOTIFY_EMAIL?: string;
 }
 
 interface ImportMeta {

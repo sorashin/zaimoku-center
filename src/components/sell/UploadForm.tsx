@@ -6,7 +6,31 @@ import {
   MODEL_ORIENTATION_DEFAULT,
 } from '@/lib/modelOrientation';
 import { ModelViewer } from '@/components/viewer/ModelViewer';
-import type { ModelFormat, ModelOrientation, Shape } from '@/lib/types';
+import type { ModelFormat, ModelOrientation, PriceUnit, Shape } from '@/lib/types';
+
+// ===== 寸法・在庫・価格パターンのフォーム行 =====
+interface VariantRow {
+  id?: string;
+  lengthMm: string;
+  widthMm: string;
+  thicknessMm: string;
+  stock: string;
+  price: string;
+  priceUnit: PriceUnit;
+  label: string;
+}
+
+function emptyVariant(): VariantRow {
+  return {
+    lengthMm: '',
+    widthMm: '',
+    thicknessMm: '',
+    stock: '',
+    price: '',
+    priceUnit: 'per_m3',
+    label: '',
+  };
+}
 
 // ===== 初期値（編集モード） =====
 export interface UploadFormInitial {
@@ -19,6 +43,17 @@ export interface UploadFormInitial {
   thicknessMm?: number;
   stock?: number;
   price?: number;
+  /** 寸法・在庫・価格パターン（sawn）。編集時に復元する。 */
+  variants?: {
+    id?: string;
+    lengthMm: number;
+    widthMm: number;
+    thicknessMm: number;
+    stock: number;
+    price: number;
+    priceUnit: PriceUnit;
+    label?: string;
+  }[];
   minUnitLabel: string;
   description?: string;
   moisture?: string;
@@ -73,12 +108,51 @@ export function UploadForm({ sellerName, initial }: Props) {
 
   const [title, setTitle] = useState(initial?.title ?? '');
   const [shape, setShape] = useState<Shape>(initial?.shape ?? 'sawn');
-  const [lengthMm, setLengthMm] = useState(initial?.lengthMm?.toString() ?? '');
-  const [widthMm, setWidthMm] = useState(initial?.widthMm?.toString() ?? '');
-  const [thicknessMm, setThicknessMm] = useState(initial?.thicknessMm?.toString() ?? '');
-  const [stock, setStock] = useState(initial?.stock?.toString() ?? '');
+
+  // sawn の寸法・在庫・価格パターン。編集時は既存パターンを復元、無ければ単一寸法から1行。
+  const initialVariants: VariantRow[] = (() => {
+    if (initial?.variants && initial.variants.length > 0) {
+      return initial.variants.map((v) => ({
+        id: v.id,
+        lengthMm: v.lengthMm.toString(),
+        widthMm: v.widthMm.toString(),
+        thicknessMm: v.thicknessMm.toString(),
+        stock: v.stock.toString(),
+        price: v.price.toString(),
+        priceUnit: v.priceUnit,
+        label: v.label ?? '',
+      }));
+    }
+    if (initial?.shape === 'sawn' && initial.lengthMm) {
+      return [
+        {
+          lengthMm: initial.lengthMm?.toString() ?? '',
+          widthMm: initial.widthMm?.toString() ?? '',
+          thicknessMm: initial.thicknessMm?.toString() ?? '',
+          stock: initial.stock?.toString() ?? '',
+          price: initial.price?.toString() ?? '',
+          priceUnit: 'per_m3' as PriceUnit,
+          label: '',
+        },
+      ];
+    }
+    return [emptyVariant()];
+  })();
+  const [variants, setVariants] = useState<VariantRow[]>(initialVariants);
+
+  // irregular（一点物）用の単一価格。
   const [price, setPrice] = useState(initial?.price?.toString() ?? '');
   const [minUnitLabel, setMinUnitLabel] = useState(initial?.minUnitLabel ?? '1本からOK');
+
+  function updateVariant(idx: number, patch: Partial<VariantRow>) {
+    setVariants((prev) => prev.map((v, i) => (i === idx ? { ...v, ...patch } : v)));
+  }
+  function addVariant() {
+    setVariants((prev) => [...prev, emptyVariant()]);
+  }
+  function removeVariant(idx: number) {
+    setVariants((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)));
+  }
 
   // 質感メタ（折りたたみ）
   const [metaOpen, setMetaOpen] = useState(
@@ -133,6 +207,24 @@ export function UploadForm({ sellerName, initial }: Props) {
   const species = speciesSel === 'その他' ? speciesOther.trim() : speciesSel;
   const isSawn = shape === 'sawn';
   const priceFieldLabel = isSawn ? '価格（¥/㎥）' : '価格（一点 ¥）';
+
+  // 確認プレビュー用: sawn は最安パターン価格・単位、irregular は単一価格。
+  const cheapestVariant = isSawn
+    ? variants.reduce<VariantRow | null>((min, v) => {
+        const p = Number(v.price);
+        if (!Number.isFinite(p) || p <= 0) return min;
+        if (!min || p < Number(min.price)) return v;
+        return min;
+      }, null)
+    : null;
+  const previewPrice = isSawn
+    ? Number(cheapestVariant?.price || 0)
+    : Number(price || 0);
+  const previewUnit = isSawn
+    ? cheapestVariant?.priceUnit === 'per_item'
+      ? ''
+      : '/㎥'
+    : '';
 
   // ===== 3Dモデル選択 =====
   async function handleModelFile(file: File) {
@@ -282,10 +374,17 @@ export function UploadForm({ sellerName, initial }: Props) {
     if (!title.trim()) return '商品名を入力してください。';
     if (!species) return '樹種を入力してください。';
     if (isSawn) {
-      if (!lengthMm || !widthMm || !thicknessMm) return '寸法（長手・短手・厚み）を入力してください。';
-      if (!stock || Number(stock) < 1) return '在庫本数を入力してください。';
+      for (let i = 0; i < variants.length; i++) {
+        const v = variants[i]!;
+        const n = i + 1;
+        if (!v.lengthMm || !v.widthMm || !v.thicknessMm)
+          return `パターン${n}の寸法（長手・短手・厚み）を入力してください。`;
+        if (!v.stock || Number(v.stock) < 1) return `パターン${n}の在庫本数を入力してください。`;
+        if (!v.price || Number(v.price) <= 0) return `パターン${n}の価格を入力してください。`;
+      }
+    } else {
+      if (!price || Number(price) <= 0) return '価格を入力してください。';
     }
-    if (!price || Number(price) <= 0) return '価格を入力してください。';
     if (modelCompressing) return '3Dスキャンの圧縮完了をお待ちください。';
     if (modelUploading) return '3Dモデルのアップロード完了をお待ちください。';
     if (photos.some((p) => p.uploading)) return '写真のアップロード完了をお待ちください。';
@@ -306,15 +405,26 @@ export function UploadForm({ sellerName, initial }: Props) {
     const photoList = photos
       .filter((p) => p.url)
       .map((p, i) => ({ url: p.url, isMain: i === 0 }));
+    const variantPayload = isSawn
+      ? variants.map((v, i) => ({
+          id: v.id,
+          lengthMm: Number(v.lengthMm),
+          widthMm: Number(v.widthMm),
+          thicknessMm: Number(v.thicknessMm),
+          stock: Number(v.stock),
+          price: Number(v.price),
+          priceUnit: v.priceUnit,
+          label: v.label.trim() || undefined,
+          sort: i,
+        }))
+      : undefined;
     return {
       title: title.trim(),
       species,
       shape,
-      lengthMm: isSawn ? Number(lengthMm) : undefined,
-      widthMm: isSawn ? Number(widthMm) : undefined,
-      thicknessMm: isSawn ? Number(thicknessMm) : undefined,
-      stock: isSawn ? Number(stock) : 1,
-      price: Number(price),
+      // sawn は variants を送る。irregular は単一価格のみ。
+      variants: variantPayload,
+      price: isSawn ? undefined : Number(price),
       minUnitLabel: minUnitLabel.trim() || '1本からOK',
       description: description.trim() || undefined,
       moisture: moisture.trim() || undefined,
@@ -360,10 +470,7 @@ export function UploadForm({ sellerName, initial }: Props) {
 
   function resetForm() {
     setTitle('');
-    setLengthMm('');
-    setWidthMm('');
-    setThicknessMm('');
-    setStock('');
+    setVariants([emptyVariant()]);
     setPrice('');
     setMinUnitLabel('1本からOK');
     setMoisture('');
@@ -721,38 +828,131 @@ export function UploadForm({ sellerName, initial }: Props) {
           </div>
         </div>
 
-        {/* 形状で切替: 寸法・在庫 / 一点物案内 */}
+        {/* 形状で切替: 寸法・在庫・価格パターン / 一点物案内＋単一価格 */}
         {isSawn ? (
           <div className={sectionClass}>
-            <h2 className={`${sectionTitle} mb-4`}>寸法・在庫</h2>
-            <div className="grid grid-cols-3 gap-2">
-              {([
-                ['長手（mm）', lengthMm, setLengthMm, '2000'],
-                ['短手（mm）', widthMm, setWidthMm, '180'],
-                ['厚み（mm）', thicknessMm, setThicknessMm, '20'],
-              ] as const).map(([lab, val, set, ph]) => (
-                <span key={lab} className="block">
-                  <label className="mb-1.5 block text-[12px] font-medium text-ink-sub">{lab}</label>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    value={val}
-                    onChange={(e) => set(e.target.value)}
-                    placeholder={ph}
-                    className={`${inputClass} px-3`}
-                  />
-                </span>
+            <h2 className={`${sectionTitle} mb-1`}>寸法・在庫・価格パターン</h2>
+            <p className="mb-4 text-[13px] leading-relaxed text-ink-sub">
+              厚み・幅・長さの違うパターンを複数登録できます。在庫・価格はパターンごとに設定します。
+            </p>
+
+            <div className="flex flex-col gap-3.5">
+              {variants.map((v, i) => (
+                <div
+                  key={i}
+                  className="rounded-card border border-border-strong bg-surface p-3.5"
+                >
+                  <div className="mb-2.5 flex items-center justify-between">
+                    <span className="text-[13px] font-semibold">パターン {i + 1}</span>
+                    {variants.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeVariant(i)}
+                        aria-label={`パターン${i + 1}を削除`}
+                        className="flex h-8 items-center gap-1 rounded-pill border border-border-strong bg-surface px-3 text-[12px] font-medium text-ink-sub transition-colors hover:bg-surface-muted"
+                      >
+                        <svg width="10" height="10" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+                          <path d="M1.5 1.5L11.5 11.5M11.5 1.5L1.5 11.5" stroke="#6a6a6a" strokeWidth="1.8" strokeLinecap="round" />
+                        </svg>
+                        削除
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    {([
+                      ['長手（mm）', 'lengthMm', '2000'],
+                      ['短手（mm）', 'widthMm', '180'],
+                      ['厚み（mm）', 'thicknessMm', '20'],
+                    ] as const).map(([lab, key, ph]) => (
+                      <span key={key} className="block">
+                        <label className="mb-1.5 block text-[12px] font-medium text-ink-sub">{lab}</label>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          value={v[key]}
+                          onChange={(e) => updateVariant(i, { [key]: e.target.value })}
+                          placeholder={ph}
+                          className={`${inputClass} px-3`}
+                        />
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <span className="block">
+                      <label className="mb-1.5 block text-[12px] font-medium text-ink-sub">在庫本数</label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        value={v.stock}
+                        onChange={(e) => updateVariant(i, { stock: e.target.value })}
+                        placeholder="13"
+                        className={`${inputClass} px-3`}
+                      />
+                    </span>
+                    <span className="block">
+                      <label className="mb-1.5 block text-[12px] font-medium text-ink-sub">
+                        価格（{v.priceUnit === 'per_m3' ? '¥/㎥' : '¥/本'}）
+                      </label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        value={v.price}
+                        onChange={(e) => updateVariant(i, { price: e.target.value })}
+                        placeholder="20000"
+                        className={`${inputClass} px-3`}
+                      />
+                    </span>
+                  </div>
+
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className="text-[12px] font-medium text-ink-sub">価格単位</span>
+                    {(['per_m3', 'per_item'] as const).map((u) => {
+                      const active = v.priceUnit === u;
+                      return (
+                        <button
+                          key={u}
+                          type="button"
+                          onClick={() => updateVariant(i, { priceUnit: u })}
+                          className={`h-8 rounded-pill border px-3 text-[12px] font-semibold transition-colors ${
+                            active
+                              ? 'border-ink bg-ink text-surface'
+                              : 'border-border-strong bg-surface text-ink hover:bg-surface-muted'
+                          }`}
+                        >
+                          {u === 'per_m3' ? '㎥単価' : '本単価'}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-3">
+                    <label className="mb-1.5 block text-[12px] font-medium text-ink-sub">
+                      パターン名（任意）
+                    </label>
+                    <input
+                      type="text"
+                      value={v.label}
+                      onChange={(e) => updateVariant(i, { label: e.target.value })}
+                      placeholder="例：厚20タイプ（未入力なら寸法を表示）"
+                      className={`${inputClass} px-3`}
+                    />
+                  </div>
+                </div>
               ))}
             </div>
-            <label className="mb-1.5 mt-4 block text-[12px] font-medium text-ink-sub">在庫本数</label>
-            <input
-              type="number"
-              inputMode="numeric"
-              value={stock}
-              onChange={(e) => setStock(e.target.value)}
-              placeholder="13"
-              className={`${inputClass} w-1/2 px-3`}
-            />
+
+            <button
+              type="button"
+              onClick={addVariant}
+              className="mt-3.5 flex h-11 w-full items-center justify-center gap-1.5 rounded-btn border border-dashed border-border-strong bg-surface text-[14px] font-semibold text-ink transition-colors hover:bg-surface-muted"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+              パターンを追加
+            </button>
           </div>
         ) : (
           <div className="mt-5 rounded-card bg-surface-muted px-4 py-3.5 text-[13px] leading-relaxed text-ink-sub">
@@ -760,19 +960,23 @@ export function UploadForm({ sellerName, initial }: Props) {
           </div>
         )}
 
-        {/* 価格 */}
+        {/* 価格（irregular の単一価格） / 最小取引単位 */}
         <div className={sectionClass}>
-          <h2 className={`${sectionTitle} mb-4`}>価格</h2>
-          <label className={labelClass}>{priceFieldLabel}</label>
-          <input
-            type="number"
-            inputMode="numeric"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            placeholder="例：20000"
-            className={inputClass}
-          />
-          <label className={`${labelClass} mt-4.5`}>最小取引単位</label>
+          <h2 className={`${sectionTitle} mb-4`}>{isSawn ? '取引設定' : '価格'}</h2>
+          {!isSawn && (
+            <>
+              <label className={labelClass}>{priceFieldLabel}</label>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder="例：20000"
+                className={inputClass}
+              />
+            </>
+          )}
+          <label className={`${labelClass} ${isSawn ? '' : 'mt-4.5'}`}>最小取引単位</label>
           <input
             type="text"
             value={minUnitLabel}
@@ -880,8 +1084,11 @@ export function UploadForm({ sellerName, initial }: Props) {
                   {species || '樹種未入力'} ・ {isSawn ? '製材済み' : '不定形材'}
                 </div>
                 <div className="mt-1 text-[15px] font-bold">
-                  ¥{Number(price || 0).toLocaleString('ja-JP')}
-                  <span className="text-[12px] font-normal text-ink-sub">{isSawn ? '/㎥' : ''}</span>
+                  ¥{previewPrice.toLocaleString('ja-JP')}
+                  <span className="text-[12px] font-normal text-ink-sub">{previewUnit}</span>
+                  {isSawn && variants.length > 1 && (
+                    <span className="ml-1 text-[12px] font-normal text-ink-sub">〜・{variants.length}パターン</span>
+                  )}
                 </div>
               </div>
             </div>

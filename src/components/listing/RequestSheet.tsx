@@ -1,10 +1,15 @@
-import { useState } from 'react';
-import type { DetailView } from '@/lib/detailView';
+import { useEffect, useState } from 'react';
+import type { DetailView, VariantView } from '@/lib/detailView';
 import { onImgError, PLACEHOLDER_IMAGE } from '@/lib/image';
+import { useCart } from '@/lib/cart/useCart';
+import { openCart } from '@/lib/cart/store';
+import { estimateAmount, formatPrice } from '@/lib/format';
+import { VARIANT_SELECT_EVENT, type VariantSelectDetail } from './VariantPicker';
 
 interface Props {
   detail: DetailView;
-  loggedIn: boolean;
+  /** 未使用（互換のため残置）。カート追加はログイン不要。 */
+  loggedIn?: boolean;
   /** 編集権限がある（自分の出品 or admin）。trueなら購入CTAを「編集する」に置換 */
   canEdit?: boolean;
   /** 編集ページへのリンク（canEdit時に使用） */
@@ -13,79 +18,77 @@ interface Props {
   layout?: 'mobile' | 'desktop';
 }
 
-function formatYen(n: number): string {
-  return `¥${n.toLocaleString('ja-JP')}`;
-}
-
 /**
- * 購入リクエスト。モバイルは sticky 下部バー、デスクトップ(≥1024px)は右パネルCTAカードを
- * トリガーにボトムシートを開く。数量ステッパー・概算・送信→完了表示。
- * 未ログインなら送信前に /login へ誘導。
+ * 商品詳細のカート追加CTA。モバイルは sticky 下部バー、デスクトップ(≥1024px)は右パネルCTAカードを
+ * トリガーにボトムシートを開く。数量ステッパー・概算を確認して「カートに追加」。
+ * 追加は localStorage のカートに対して行い、ログイン不要。購入リクエストはカートからまとめて送る。
  */
 export function RequestSheet({
   detail,
-  loggedIn,
   canEdit = false,
   editHref,
   layout = 'mobile',
 }: Props) {
+  const { addItem } = useCart();
   const [open, setOpen] = useState(false);
   const [sent, setSent] = useState(false);
   const [qty, setQty] = useState(1);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const isSawn = detail.isSawn;
-  const maxQty = Math.max(1, detail.stock);
+  const hasVariants = isSawn && detail.variants.length > 0;
+
+  // 選択中パターン。VariantPicker（写真下の island）の選択を CustomEvent で受け取る。
+  // 初期値は先頭パターン。パターンが無い出品（irregular 等）では undefined。
+  const [selectedVariant, setSelectedVariant] = useState<VariantView | undefined>(
+    hasVariants ? detail.variants[0] : undefined
+  );
+
+  useEffect(() => {
+    if (!hasVariants) return;
+    const onSelect = (e: Event) => {
+      const detailEv = (e as CustomEvent<VariantSelectDetail>).detail;
+      if (!detailEv || detailEv.listingId !== detail.id) return;
+      const v = detail.variants.find((x) => x.id === detailEv.variantId);
+      if (v) setSelectedVariant(v);
+    };
+    window.addEventListener(VARIANT_SELECT_EVENT, onSelect);
+    return () => window.removeEventListener(VARIANT_SELECT_EVENT, onSelect);
+  }, [detail.id, detail.variants, hasVariants]);
+
+  // 価格・在庫・材積の参照元。選択パターンがあればそれを、無ければ listing 全体を使う。
+  // VariantView と DetailView は price/priceUnit/unitLabel/priceLabel/volumePerUnit/stock/stockLine を共通で持つ。
+  const active = selectedVariant ?? detail;
+  const maxQty = Math.max(1, active.stock);
 
   // 概算金額
-  const estimate = isSawn
-    ? Math.round(detail.price * detail.volumePerUnit) * qty
-    : detail.price;
-  const volLine = isSawn
-    ? `${detail.volumePerUnit.toFixed(4)} ㎥/本 × ${qty} 本`
-    : '';
+  const estimate = estimateAmount(active.priceUnit, active.price, active.volumePerUnit, qty);
+  const volLine = isSawn ? `${active.volumePerUnit.toFixed(4)} ㎥/本 × ${qty} 本` : '';
 
   const openSheet = () => {
     setSent(false);
     setQty(1);
-    setError(null);
     setOpen(true);
   };
   const closeSheet = () => setOpen(false);
 
-  const redirectToLogin = () => {
-    const redirect = encodeURIComponent(window.location.pathname + window.location.search);
-    window.location.href = `/login?redirect=${redirect}`;
-  };
-
-  async function send() {
-    if (!loggedIn) {
-      redirectToLogin();
-      return;
-    }
-    if (submitting) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/requests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ listingId: detail.id, qty: isSawn ? qty : 1 }),
-      });
-      if (!res.ok) {
-        if (res.status === 401) {
-          redirectToLogin();
-          return;
-        }
-        throw new Error(`status ${res.status}`);
-      }
-      setSent(true);
-    } catch {
-      setError('送信に失敗しました。時間をおいて再度お試しください。');
-    } finally {
-      setSubmitting(false);
-    }
+  function addToCart() {
+    addItem({
+      listingId: detail.id,
+      variantId: selectedVariant?.id,
+      variantLabel: selectedVariant?.label,
+      // パターン未選択（単一 sawn）の寸法。variantLabel がある時は重複するので渡さない。
+      dimensionLabel: selectedVariant ? undefined : detail.dimensionLabel || undefined,
+      qty: isSawn ? Math.min(qty, maxQty) : 1,
+      title: detail.title,
+      photo: detail.mainPhoto,
+      price: active.price,
+      priceUnit: active.priceUnit,
+      shape: detail.shape,
+      volumePerUnit: active.volumePerUnit,
+      sellerName: detail.seller.companyName,
+      addedAt: Date.now(),
+    });
+    setSent(true);
   }
 
   return (
@@ -98,12 +101,12 @@ export function RequestSheet({
         >
           <div className="min-w-0 flex-1">
             <div className="text-[18px] font-bold">
-              {detail.priceLabel}
-              {detail.unitLabel && (
-                <span className="text-[13px] font-normal text-ink-sub">{detail.unitLabel}</span>
+              {active.priceLabel}
+              {active.unitLabel && (
+                <span className="text-[13px] font-normal text-ink-sub">{active.unitLabel}</span>
               )}
             </div>
-            <div className="mt-0.5 text-[12px] text-ink-sub">{detail.stockLine}</div>
+            <div className="mt-0.5 text-[12px] text-ink-sub">{active.stockLine}</div>
           </div>
           {canEdit ? (
             <a
@@ -121,7 +124,7 @@ export function RequestSheet({
               onClick={openSheet}
               className="whitespace-nowrap rounded-btn bg-primary px-6 py-3.5 text-[16px] font-bold text-ink transition-colors hover:bg-primary-active"
             >
-              購入リクエスト
+              カートに追加
             </button>
           )}
         </div>
@@ -129,12 +132,12 @@ export function RequestSheet({
         /* ===== デスクトップ: 右パネル CTAカード ===== */
         <div className="rounded-card border border-hairline bg-surface p-5 shadow-card">
           <div className="text-[22px] font-bold">
-            {detail.priceLabel}
-            {detail.unitLabel && (
-              <span className="text-[14px] font-normal text-ink-sub">{detail.unitLabel}</span>
+            {active.priceLabel}
+            {active.unitLabel && (
+              <span className="text-[14px] font-normal text-ink-sub">{active.unitLabel}</span>
             )}
           </div>
-          <div className="mt-1 text-[13px] text-ink-sub">{detail.stockLine}</div>
+          <div className="mt-1 text-[13px] text-ink-sub">{active.stockLine}</div>
           <div className="mt-1 text-[13px] text-ink-sub">{detail.minUnitLabel}</div>
           {canEdit ? (
             <>
@@ -158,10 +161,10 @@ export function RequestSheet({
                 onClick={openSheet}
                 className="mt-4 w-full rounded-btn bg-primary py-3.5 text-[16px] font-bold text-ink transition-colors hover:bg-primary-active"
               >
-                購入リクエスト
+                カートに追加
               </button>
               <p className="mt-3 text-[12px] leading-relaxed text-ink-sub">
-                送信時点では支払いは発生しません。{detail.seller.companyName}が在庫と引き渡し方法を確認のうえ、正式な金額を返信します。
+                カートに入れて、他の材とまとめて購入リクエストを送れます。送信時点では支払いは発生しません。
               </p>
             </>
           )}
@@ -185,7 +188,7 @@ export function RequestSheet({
             {!sent ? (
               <>
                 <div className="flex items-center justify-between">
-                  <span className="text-[18px] font-semibold">購入リクエスト</span>
+                  <span className="text-[18px] font-semibold">カートに追加</span>
                   <button
                     type="button"
                     onClick={closeSheet}
@@ -213,9 +216,12 @@ export function RequestSheet({
                   />
                   <span className="flex flex-col gap-px">
                     <span className="text-[15px] font-semibold">{detail.title}</span>
+                    {selectedVariant && (
+                      <span className="text-[12px] text-ink-sub">{selectedVariant.label}</span>
+                    )}
                     <span className="text-[13px] text-ink-sub">
-                      {detail.priceLabel}
-                      {detail.unitLabel} ・ {detail.seller.companyName}
+                      {active.priceLabel}
+                      {active.unitLabel} ・ {detail.seller.companyName}
                     </span>
                   </span>
                 </div>
@@ -259,28 +265,19 @@ export function RequestSheet({
 
                 <div className="flex items-baseline justify-between py-2.5">
                   <span className="text-[15px] font-medium">概算金額</span>
-                  <span className="text-[20px] font-bold">{formatYen(estimate)}</span>
+                  <span className="text-[20px] font-bold">{formatPrice(estimate)}</span>
                 </div>
 
                 <p className="mt-2.5 text-[12px] leading-relaxed text-ink-sub">
-                  送信時点では支払いは発生しません。{detail.seller.companyName}が在庫と引き渡し方法を確認のうえ、正式な金額を返信します。
+                  カートに入れて、他の材とまとめて購入リクエストを送れます。
                 </p>
-
-                {error && (
-                  <p className="mt-3 text-[13px] font-medium text-danger">{error}</p>
-                )}
 
                 <button
                   type="button"
-                  onClick={send}
-                  disabled={submitting}
-                  className="mt-4.5 h-[50px] w-full rounded-btn bg-primary text-[16px] font-bold text-ink transition-colors hover:bg-primary-active disabled:opacity-60"
+                  onClick={addToCart}
+                  className="mt-4.5 h-[50px] w-full rounded-btn bg-primary text-[16px] font-bold text-ink transition-colors hover:bg-primary-active"
                 >
-                  {loggedIn
-                    ? submitting
-                      ? '送信中…'
-                      : 'リクエストを送信'
-                    : 'ログインして送信'}
+                  カートに入れる
                 </button>
               </>
             ) : (
@@ -296,18 +293,28 @@ export function RequestSheet({
                     />
                   </svg>
                 </span>
-                <span className="mt-4 text-[18px] font-semibold">リクエストを送信しました</span>
+                <span className="mt-4 text-[18px] font-semibold">カートに追加しました</span>
                 <span className="mt-2 text-[14px] leading-relaxed text-ink-sub">
-                  {detail.seller.companyName}から1〜2営業日以内に
+                  他の材とまとめて購入リクエストを
                   <br />
-                  返信があります。
+                  送れます。
                 </span>
                 <button
                   type="button"
-                  onClick={closeSheet}
-                  className="mt-5.5 h-[50px] w-full rounded-btn border border-ink bg-surface text-[16px] font-semibold text-ink transition-colors hover:bg-surface-muted"
+                  onClick={() => {
+                    closeSheet();
+                    openCart();
+                  }}
+                  className="mt-5.5 h-[50px] w-full rounded-btn bg-primary text-[16px] font-bold text-ink transition-colors hover:bg-primary-active"
                 >
-                  閉じる
+                  カートを見る
+                </button>
+                <button
+                  type="button"
+                  onClick={closeSheet}
+                  className="mt-3 h-[50px] w-full rounded-btn border border-ink bg-surface text-[16px] font-semibold text-ink transition-colors hover:bg-surface-muted"
+                >
+                  買い物を続ける
                 </button>
               </div>
             )}

@@ -1,4 +1,4 @@
-import type { Listing, Seller } from '@/lib/types';
+import type { Listing, ListingVariant, Seller } from '@/lib/types';
 
 // ===== 出品者3社（伊那谷に分散） =====
 
@@ -77,7 +77,8 @@ function photos(id: string): Listing['photos'] {
 // ===== 9品目 =====
 // 樹種スラッグ（id）は R2 写真ファイル名（seed-photos/<id>-*.jpg）にも使用する。
 
-export const seedListings: Listing[] = [
+// 生データ（variants は未指定）。export 時に sawn は単寸法→1パターンへ自動補完する。
+const seedListingsRaw: Omit<Listing, 'variants'>[] = [
   {
     id: 'kaba',
     sellerId: 'seller-morimoku',
@@ -262,3 +263,22 @@ export const seedListings: Listing[] = [
     postedAt: '2026-06-01T09:00:00+09:00', // 約2週間前
   },
 ];
+
+// sawn は単寸法から 1パターン（sort=0）を補完。irregular は空配列。
+export const seedListings: Listing[] = seedListingsRaw.map((l) => {
+  const variants: ListingVariant[] =
+    l.shape === 'sawn' && l.lengthMm && l.widthMm && l.thicknessMm
+      ? [
+          {
+            lengthMm: l.lengthMm,
+            widthMm: l.widthMm,
+            thicknessMm: l.thicknessMm,
+            stock: l.stock,
+            price: l.price,
+            priceUnit: l.priceUnit,
+            sort: 0,
+          },
+        ]
+      : [];
+  return { ...l, variants };
+});
