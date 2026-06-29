@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getData } from '@/lib/server/data';
 import { getSession } from '@/lib/server/session';
-import { sendCartRequestMail } from '@/lib/server/email';
+import { postCartRequestToWebhook } from '@/lib/server/cartRequestWebhook';
 import { estimateTotal, estimateVariantTotal, formatPrice, variantLabel } from '@/lib/format';
 import { cartLineKey } from '@/lib/cart/types';
 
@@ -23,7 +23,8 @@ function json(body: unknown, status: number): Response {
 
 /**
  * カートのまとめ購入リクエスト。{ items: [{listingId, qty}], message? } を受け取り、
- * 採用された各材を purchase_requests に1行ずつ保存し、運営宛に1通だけメール通知する。
+ * 採用された各材を purchase_requests に1行ずつ保存し、GAS Web App へ通知を POST する
+ * （GAS 側がスプレッドシート蓄積＋運営宛メール送信を担う）。
  * 価格・数量はクライアントを信用せずサーバーで再検証・再正規化する。
  */
 export const POST: APIRoute = async ({ request, cookies, locals }) => {
@@ -72,6 +73,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     title: string;
     sellerName: string;
     qty: number;
+    estimatedTotal: number;
     estimatedTotalLabel: string;
   }[] = [];
   let grandTotal = 0;
@@ -89,7 +91,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
         ? listing.variants.find((v) => v.id === want.variantId) ?? listing.variants[0]!
         : undefined;
 
-    // 数量: sawn は 1〜在庫（パターン在庫）、irregular は常に1（/api/requests と同じロジック）。
+    // 数量: sawn は 1〜在庫（パターン在庫）、irregular は常に1。
     let qty = want.qty;
     if (listing.shape === 'irregular') {
       qty = 1;
@@ -116,6 +118,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
       title: variantNote ? `${listing.title}（${variantNote}）` : listing.title,
       sellerName: listing.seller.companyName,
       qty,
+      estimatedTotal,
       estimatedTotalLabel: formatPrice(estimatedTotal),
     });
   }
@@ -124,13 +127,14 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     return json({ error: 'no_valid_items', rejected }, 409);
   }
 
-  // 運営宛に1通だけ通知（スタブ可）。ADMIN_NOTIFY_EMAIL はカンマ/セミコロン区切りで複数指定可。
-  // 未設定なら email 側で宛先空として警告ログのみ（リクエスト保存は成功扱い）。
-  await sendCartRequestMail(
+  // GAS Web App へ通知（スプレッドシート蓄積＋運営宛メールは GAS 側が担う）。
+  // GAS_WEBHOOK_URL 未設定ならスタブログのみ（リクエスト保存は成功扱い）。
+  await postCartRequestToWebhook(
     {
-      to: env?.ADMIN_NOTIFY_EMAIL ?? '',
       buyerName: session.user.name,
+      buyerId: session.user.id,
       items: mailItems,
+      grandTotal,
       grandTotalLabel: formatPrice(grandTotal),
       message: message || undefined,
     },
