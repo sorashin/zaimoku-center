@@ -146,7 +146,6 @@ const relatedCards = related.map(toCardView);
         <div class="sticky top-[73px]">
           <RequestSheet
             detail={detail}
-            loggedIn={loggedIn}
             canEdit={canEdit}
             editHref={`/sell/edit/${detail.id}`}
             layout="desktop"
@@ -197,7 +196,6 @@ const relatedCards = related.map(toCardView);
     <div class="h-[84px]" style="height:calc(84px + env(safe-area-inset-bottom, 0px))"></div>
     <RequestSheet
       detail={detail}
-      loggedIn={loggedIn}
       canEdit={canEdit}
       editHref={`/sell/edit/${detail.id}`}
       layout="mobile"

@@ -10,9 +10,10 @@ interface ImportMetaEnv {
   readonly R2_SECRET_ACCESS_KEY?: string;
   readonly R2_BUCKET?: string;
   readonly R2_PUBLIC_BASE_URL?: string;
-  readonly RESEND_API_KEY?: string;
-  /** まとめ購入リクエストの通知先（運営アドレス） */
-  readonly ADMIN_NOTIFY_EMAIL?: string;
+  /** カートまとめ購入リクエストの通知先（Google Apps Script Web App の URL） */
+  readonly GAS_WEBHOOK_URL?: string;
+  /** GAS Web App の簡易認証用共有トークン（任意。GAS 側のスクリプトプロパティと照合） */
+  readonly GAS_WEBHOOK_TOKEN?: string;
 }
 
 interface ImportMeta {

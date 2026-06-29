@@ -8,8 +8,6 @@ import { VARIANT_SELECT_EVENT, type VariantSelectDetail } from './VariantPicker'
 
 interface Props {
   detail: DetailView;
-  /** 未使用（互換のため残置）。カート追加はログイン不要。 */
-  loggedIn?: boolean;
   /** 編集権限がある（自分の出品 or admin）。trueなら購入CTAを「編集する」に置換 */
   canEdit?: boolean;
   /** 編集ページへのリンク（canEdit時に使用） */
