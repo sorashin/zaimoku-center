@@ -9,14 +9,16 @@ interface Props {
   modelUrl?: string;
   modelFormat?: ModelFormat;
   modelOrientation?: ModelOrientation;
+  /** 3Dビュー用サムネのプレビュー画像（保存済みなら表示、無ければ立方体アイコン）。 */
+  modelPosterUrl?: string;
 }
 
 /**
  * 詳細ページのメディアエリア（主役）。
- * modelUrl があれば 1枚目サムネ(キャプチャ)=3Dビュー、2枚目以降=写真。サムネ選択で切替。
+ * modelUrl があれば サムネ列の先頭に3Dビュー枠を1つ足し、写真はすべてその後ろに並ぶ。
  * modelUrl が無ければ横スワイプ写真スライダー＋サムネイル列。
  */
-export function MediaViewer({ title, photos, modelUrl, modelFormat, modelOrientation }: Props) {
+export function MediaViewer({ title, photos, modelUrl, modelFormat, modelOrientation, modelPosterUrl }: Props) {
   const has3d = Boolean(modelUrl);
   // 選択中サムネ index。3Dあり時は 0 = キャプチャ(=3Dビュー)、≥1 = 通常写真
   const [selected, setSelected] = useState(0);
@@ -47,9 +49,17 @@ export function MediaViewer({ title, photos, modelUrl, modelFormat, modelOrienta
     );
   }
 
-  // ===== 3Dあり: 先頭サムネ=3Dビュー、以降=写真。トグルなし =====
-  // 0枚目を選択 かつ 3D失敗していない → 3Dビュー
-  const show3d = selected === 0 && !model3dFailed;
+  // ===== 3Dあり: メディア列を「3Dビュー枠 + 写真すべて」の単一リストで扱う =====
+  // items[0] = 3Dビュー（読み込み失敗時は落とす）、以降 = 写真。selected はこの
+  // items を直接インデックスするので、写真index との +1/-1 オフセット演算は不要。
+  type MediaItem = { kind: '3d' } | { kind: 'photo'; url: string; photoIndex: number };
+  const items: MediaItem[] = [
+    ...(model3dFailed ? [] : [{ kind: '3d' as const }]),
+    ...photos.map((url, i) => ({ kind: 'photo' as const, url, photoIndex: i })),
+  ];
+  // 選択が範囲外（3D失敗でリストが縮んだ等）なら先頭にフォールバック。
+  const current = items[selected] ?? items[0];
+  const show3d = current?.kind === '3d';
 
   return (
     <div>
@@ -63,34 +73,46 @@ export function MediaViewer({ title, photos, modelUrl, modelFormat, modelOrienta
           />
         ) : (
           <img
-            src={photos[selected] ?? photos[0] ?? PLACEHOLDER_IMAGE}
-            alt={`${title} 写真${selected + 1}`}
+            src={current?.url ?? photos[0] ?? PLACEHOLDER_IMAGE}
+            alt={`${title} 写真${(current?.photoIndex ?? 0) + 1}`}
             onError={onImgError}
-            onClick={() => setLightboxIndex(selected)}
+            onClick={() => current && setLightboxIndex(current.photoIndex)}
             className="block h-full w-full cursor-zoom-in object-cover md:rounded-card"
           />
         )}
       </div>
 
-      {/* サムネイル列（先頭=キャプチャ/3D、以降=写真） */}
+      {/* サムネイル列（items をそのまま並べる。先頭=3Dビュー枠、以降=写真） */}
       <div className="no-scrollbar mt-3 flex gap-2 overflow-x-auto px-4 md:px-0">
-        {photos.map((src, i) => {
-          const is3dThumb = i === 0;
-          const active = is3dThumb ? show3d : selected === i;
+        {items.map((item, i) => {
+          const active = selected === i;
           return (
             <button
-              key={i}
+              key={item.kind === '3d' ? '3d' : `photo-${item.photoIndex}`}
               type="button"
               onClick={() => setSelected(i)}
-              aria-label={is3dThumb ? '3Dビュー' : `写真${i + 1}`}
-              className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-btn border-2"
+              aria-label={item.kind === '3d' ? '3Dビュー' : `写真${item.photoIndex + 1}`}
+              className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-btn border-2 bg-surface-muted"
               style={{ borderColor: active ? '#FF9F1C' : 'var(--color-hairline)' }}
             >
-              <img src={src || PLACEHOLDER_IMAGE} alt="" onError={onImgError} className="h-full w-full object-cover" />
-              {is3dThumb && (
-                <span className="absolute bottom-1 right-1 flex h-5 items-center rounded-pill border border-white bg-black/45 px-1.5 text-[9px] font-bold text-white">
-                  3D
-                </span>
+              {item.kind === '3d' ? (
+                <>
+                  {modelPosterUrl ? (
+                    <img src={modelPosterUrl} alt="" onError={onImgError} className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center text-ink-faint">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M12 2.5L20 7v10l-8 4.5L4 17V7l8-4.5Z" stroke="#929292" strokeWidth="1.5" strokeLinejoin="round" />
+                        <path d="M4 7l8 4.5L20 7M12 11.5V21.5" stroke="#929292" strokeWidth="1.5" strokeLinejoin="round" />
+                      </svg>
+                    </span>
+                  )}
+                  <span className="absolute bottom-1 right-1 flex h-5 items-center rounded-pill border border-white bg-black/45 px-1.5 text-[9px] font-bold text-white">
+                    3D
+                  </span>
+                </>
+              ) : (
+                <img src={item.url || PLACEHOLDER_IMAGE} alt="" onError={onImgError} className="h-full w-full object-cover" />
               )}
             </button>
           );
