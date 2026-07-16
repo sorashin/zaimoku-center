@@ -41,6 +41,7 @@ export interface DetailView {
   modelUrl?: string;
   modelFormat?: 'glb' | 'splat';
   modelOrientation?: ModelOrientation;
+  modelPosterUrl?: string;
   stock: number;
   price: number;
   priceUnit: PriceUnit;
@@ -156,6 +157,7 @@ export function toDetailView(listing: ListingWithSeller): DetailView {
     modelUrl: listing.modelUrl,
     modelFormat: listing.modelFormat,
     modelOrientation: listing.modelOrientation,
+    modelPosterUrl: listing.modelPosterUrl,
     stock: listing.stock,
     price: listing.price,
     priceUnit: listing.priceUnit,

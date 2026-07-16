@@ -6,6 +6,7 @@ import {
   MODEL_ORIENTATION_DEFAULT,
 } from '@/lib/modelOrientation';
 import { ModelViewer } from '@/components/viewer/ModelViewer';
+import { onImgError } from '@/lib/image';
 import type { ModelFormat, ModelOrientation, PriceUnit, Shape } from '@/lib/types';
 
 // ===== 寸法・在庫・価格パターンのフォーム行 =====
@@ -74,9 +75,13 @@ interface Props {
 }
 
 interface PhotoSlot {
+  /** 一意キー（React の並び替え・削除で index を鍵にしないため）。 */
+  key: string;
   url: string;
   uploading: boolean;
 }
+
+const MAX_PHOTOS = 10;
 
 const MODEL_EXT = ['glb', 'gltf', 'ply', 'splat', 'ksplat'];
 const MODEL_SIZE_WARN = 50 * 1024 * 1024; // 50MB 目安
@@ -191,13 +196,17 @@ export function UploadForm({ sellerName, initial }: Props) {
   // ビューアが渡してくるキャプチャ関数（現在の表示を PNG dataURL で取得）。
   const captureRef = useRef<(() => string | null) | null>(null);
 
-  // 写真スロット（メイン + サブ2）
-  const initialPhotos: PhotoSlot[] = [0, 1, 2].map((i) => ({
-    url: initial?.photos[i]?.url ?? '',
-    uploading: false,
-  }));
-  const [photos, setPhotos] = useState<PhotoSlot[]>(initialPhotos);
-  const photoInputRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
+  // 写真スロット（最大10枚・可変）。1枚目がメイン。編集時は既存写真を復元。
+  // スロットの一意キー採番用カウンタ（index を key にしないため）。
+  const photoKeySeq = useRef(0);
+  const nextPhotoKey = () => `p${photoKeySeq.current++}`;
+  const [photos, setPhotos] = useState<PhotoSlot[]>(() =>
+    (initial?.photos ?? [])
+      .filter((p) => p.url)
+      .slice(0, MAX_PHOTOS)
+      .map((p) => ({ key: nextPhotoKey(), url: p.url, uploading: false }))
+  );
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const [error, setError] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -341,14 +350,9 @@ export function UploadForm({ sellerName, initial }: Props) {
     }
   }
 
-  // ===== 写真選択 =====
-  async function handlePhotoFile(idx: number, file: File) {
-    if (!file.type.startsWith('image/')) {
-      setError('画像ファイルを選択してください。');
-      return;
-    }
-    setError('');
-    setPhotos((prev) => prev.map((p, i) => (i === idx ? { ...p, uploading: true } : p)));
+  // ===== 写真選択（複数一括対応・最大10枚） =====
+  // 選択された1枚をアップロードし、対応するスロット（key）を更新する。
+  async function uploadPhotoSlot(key: string, file: File) {
     try {
       const fd = new FormData();
       fd.append('file', file);
@@ -356,17 +360,40 @@ export function UploadForm({ sellerName, initial }: Props) {
       const res = await fetch('/api/upload', { method: 'POST', body: fd });
       const j = (await res.json()) as { url?: string; message?: string };
       if (!res.ok || !j.url) throw new Error(j.message || 'アップロードに失敗しました。');
-      setPhotos((prev) => prev.map((p, i) => (i === idx ? { url: j.url!, uploading: false } : p)));
+      setPhotos((prev) => prev.map((p) => (p.key === key ? { ...p, url: j.url!, uploading: false } : p)));
     } catch (e) {
       setError(e instanceof Error ? e.message : '写真のアップロードに失敗しました。');
-      setPhotos((prev) => prev.map((p, i) => (i === idx ? { url: '', uploading: false } : p)));
+      // 失敗したスロットは取り除く。
+      setPhotos((prev) => prev.filter((p) => p.key !== key));
     }
   }
 
-  function clearPhoto(idx: number) {
-    setPhotos((prev) => prev.map((p, i) => (i === idx ? { url: '', uploading: false } : p)));
-    const ref = photoInputRefs[idx]?.current;
-    if (ref) ref.value = '';
+  // ファイル入力（複数可）。空きスロット数まで受け付け、各ファイルを並行アップロード。
+  function handlePhotoFiles(fileList: FileList | null) {
+    if (!fileList || fileList.length === 0) return;
+    const images = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
+    if (images.length === 0) {
+      setError('画像ファイルを選択してください。');
+      return;
+    }
+    setError('');
+    const remaining = MAX_PHOTOS - photos.length;
+    if (remaining <= 0) {
+      setError(`写真は最大${MAX_PHOTOS}枚までです。`);
+      return;
+    }
+    const accepted = images.slice(0, remaining);
+    if (images.length > remaining) {
+      setError(`写真は最大${MAX_PHOTOS}枚までです。${accepted.length}枚を追加しました。`);
+    }
+    // 先にプレースホルダー（uploading）スロットを追加してから並行アップロード。
+    const slots = accepted.map((file) => ({ key: nextPhotoKey(), file }));
+    setPhotos((prev) => [...prev, ...slots.map((s) => ({ key: s.key, url: '', uploading: true }))]);
+    for (const s of slots) void uploadPhotoSlot(s.key, s.file);
+  }
+
+  function clearPhoto(key: string) {
+    setPhotos((prev) => prev.filter((p) => p.key !== key));
   }
 
   // ===== バリデーション → 確認ダイアログ =====
@@ -388,6 +415,9 @@ export function UploadForm({ sellerName, initial }: Props) {
     if (modelCompressing) return '3Dスキャンの圧縮完了をお待ちください。';
     if (modelUploading) return '3Dモデルのアップロード完了をお待ちください。';
     if (photos.some((p) => p.uploading)) return '写真のアップロード完了をお待ちください。';
+    // 写真も3Dモデルも無い場合は最低1枚の写真を必須にする（3Dのみの出品は許可）。
+    if (photos.filter((p) => p.url).length === 0 && !modelUrl)
+      return '商品写真を1枚以上追加してください。';
     return null;
   }
 
@@ -479,7 +509,7 @@ export function UploadForm({ sellerName, initial }: Props) {
     setKnots('');
     setDescription('');
     clearModel();
-    setPhotos([0, 1, 2].map(() => ({ url: '', uploading: false })));
+    setPhotos([]);
     setMetaOpen(false);
     setDone(false);
     setError('');
@@ -712,64 +742,63 @@ export function UploadForm({ sellerName, initial }: Props) {
         {/* 商品写真 */}
         <div className={sectionClass}>
           <h2 className={sectionTitle}>商品写真</h2>
-          <p className="mt-1.5 text-[13px] text-ink-sub">1枚目がメイン写真として一覧・詳細に表示されます。</p>
-          <div
-            className="mt-3.5 grid gap-2"
-            style={{ gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr)', gridTemplateRows: '1fr 1fr' }}
-          >
-            {[0, 1, 2].map((i) => {
-              const slot = photos[i]!;
-              const isMain = i === 0;
-              return (
-                <div
-                  key={i}
-                  className="relative"
-                  style={isMain ? { gridRow: 'span 2', minHeight: 180 } : { minHeight: 86 }}
-                >
+          <p className="mt-1.5 text-[13px] text-ink-sub">
+            1枚目がメイン写真として一覧・詳細に表示されます。最大{MAX_PHOTOS}枚まで、まとめて選択できます。
+          </p>
+          <div className="mt-3.5 grid grid-cols-3 gap-2">
+            {photos.map((slot, i) => (
+              <div key={slot.key} className="relative aspect-square">
+                <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-card border border-border-strong bg-surface-muted">
+                  {slot.url ? (
+                    <img src={slot.url} alt="" onError={onImgError} className="h-full w-full object-cover" />
+                  ) : slot.uploading ? (
+                    <span className="text-[12px] text-ink-sub">アップロード中…</span>
+                  ) : null}
+                </div>
+                {i === 0 && slot.url && (
+                  <span className="absolute left-1.5 top-1.5 rounded-pill bg-ink px-2 py-0.5 text-[10px] font-bold text-surface">
+                    メイン
+                  </span>
+                )}
+                {!slot.uploading && (
                   <button
                     type="button"
-                    onClick={() => photoInputRefs[i]?.current?.click()}
-                    className="flex h-full w-full items-center justify-center overflow-hidden rounded-card border border-border-strong bg-surface-muted"
+                    onClick={() => clearPhoto(slot.key)}
+                    aria-label="写真を削除"
+                    className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-pill bg-black/55"
                   >
-                    {slot.url ? (
-                      <img src={slot.url} alt="" className="h-full w-full object-cover" />
-                    ) : slot.uploading ? (
-                      <span className="text-[12px] text-ink-sub">アップロード中…</span>
-                    ) : (
-                      <span className="flex flex-col items-center text-ink-faint">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                          <path d="M12 5v14M5 12h14" stroke="#929292" strokeWidth="1.8" strokeLinecap="round" />
-                        </svg>
-                        <span className="mt-1 text-[12px]">{isMain ? 'メイン写真' : `サブ ${i}`}</span>
-                      </span>
-                    )}
+                    <svg width="11" height="11" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+                      <path d="M1.5 1.5L11.5 11.5M11.5 1.5L1.5 11.5" stroke="#ffffff" strokeWidth="1.8" strokeLinecap="round" />
+                    </svg>
                   </button>
-                  {slot.url && (
-                    <button
-                      type="button"
-                      onClick={() => clearPhoto(i)}
-                      aria-label="写真を削除"
-                      className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-pill bg-black/55"
-                    >
-                      <svg width="11" height="11" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-                        <path d="M1.5 1.5L11.5 11.5M11.5 1.5L1.5 11.5" stroke="#ffffff" strokeWidth="1.8" strokeLinecap="round" />
-                      </svg>
-                    </button>
-                  )}
-                  <input
-                    ref={photoInputRefs[i]}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) void handlePhotoFile(i, f);
-                    }}
-                  />
-                </div>
-              );
-            })}
+                )}
+              </div>
+            ))}
+            {photos.length < MAX_PHOTOS && (
+              <button
+                type="button"
+                onClick={() => photoInputRef.current?.click()}
+                className="flex aspect-square flex-col items-center justify-center rounded-card border-2 border-dashed border-border-strong bg-surface text-ink-faint transition-colors hover:bg-surface-muted"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M12 5v14M5 12h14" stroke="#929292" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+                <span className="mt-1 text-[12px] font-medium">写真を追加</span>
+                <span className="text-[11px] text-ink-faint">{photos.length}/{MAX_PHOTOS}</span>
+              </button>
+            )}
           </div>
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              handlePhotoFiles(e.target.files);
+              e.target.value = '';
+            }}
+          />
         </div>
 
         {/* 基本情報 */}
@@ -1073,7 +1102,7 @@ export function UploadForm({ sellerName, initial }: Props) {
             <div className="mt-4 flex items-center gap-3 rounded-card border border-hairline bg-surface p-3 shadow-card">
               <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-[10px] bg-surface-muted">
                 {photos[0]?.url ? (
-                  <img src={photos[0].url} alt="" className="h-full w-full object-cover" />
+                  <img src={photos[0].url} alt="" onError={onImgError} className="h-full w-full object-cover" />
                 ) : (
                   <span className="flex h-full w-full items-center justify-center text-[11px] text-ink-faint">写真なし</span>
                 )}
