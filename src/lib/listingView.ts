@@ -69,6 +69,8 @@ export interface ListingCardView {
   dimensionsLabel: string;
   minUnitLabel: string;
   postedLabel: string;
+  /** 出品日時（ISO）。新着順ソートに使う。 */
+  postedAt: string;
   mainPhoto: string;
   seller: {
     id: string;
@@ -108,6 +110,7 @@ export function toCardView(listing: ListingWithSeller): ListingCardView {
     dimensionsLabel: dimensionsLabel(listing),
     minUnitLabel: listing.minUnitLabel,
     postedLabel: `${timeAgo(listing.postedAt)}出品`,
+    postedAt: listing.postedAt,
     mainPhoto: thumbnail,
     seller: {
       id: listing.seller.id,

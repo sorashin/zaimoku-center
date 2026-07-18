@@ -10,9 +10,11 @@ import {
   matchesFilter,
   sizeDomainFromItems,
 } from '@/lib/listingFilter';
+import { type SortKey, DEFAULT_SORT, sortListings } from '@/lib/listingSort';
 import { FavoriteButton } from '@/components/FavoriteButton';
 import { ListingCard } from './ListingCard';
 import { PriceUnitToggle } from './PriceUnitToggle';
+import { SortMenu } from './SortMenu';
 import { FilterDialog } from './FilterDialog';
 import { ListingsMap } from '../map/ListingsMap';
 
@@ -24,36 +26,9 @@ interface Props {
   loggedIn?: boolean;
 }
 
-type SortState = 'newest' | 'price_asc';
-
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex items-center gap-1.5 whitespace-nowrap rounded-pill border px-4 py-2.5 text-[14px] font-medium transition-colors"
-      style={{
-        background: active ? '#222222' : '#ffffff',
-        color: active ? '#ffffff' : '#222222',
-        borderColor: active ? '#222222' : 'var(--color-hairline)',
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
 export function ListBrowser({ items, savedIds = [], loggedIn = false }: Props) {
   const savedSet = useMemo(() => new Set(savedIds), [savedIds]);
-  const [sort, setSort] = useState<SortState>('newest');
+  const [sort, setSort] = useState<SortKey>(DEFAULT_SORT);
   const [filter, setFilter] = useState<FilterState>(EMPTY_FILTER);
   const [filterOpen, setFilterOpen] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
@@ -67,11 +42,8 @@ export function ListBrowser({ items, savedIds = [], loggedIn = false }: Props) {
   const sizeDomain = useMemo(() => sizeDomainFromItems(items), [items]);
 
   const filtered = useMemo(() => {
-    let list = items.filter((it) => matchesFilter(it, filter));
-    if (sort === 'price_asc') {
-      list = [...list].sort((a, b) => a.price - b.price);
-    }
-    return list;
+    const list = items.filter((it) => matchesFilter(it, filter));
+    return sortListings(list, sort);
   }, [items, sort, filter]);
 
   // 立米単価⇄1枚あたりを切り替えられる出品が1件でもあれば、一覧上部にトグルを出す。
@@ -86,25 +58,8 @@ export function ListBrowser({ items, savedIds = [], loggedIn = false }: Props) {
           <div className="px-4 pt-4 md:px-6">
             <div className="flex items-center gap-2 py-3">
               <div className="no-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto">
-                <Chip active={sort === 'price_asc'} onClick={() => setSort((s) => (s === 'price_asc' ? 'newest' : 'price_asc'))}>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                    <path
-                      d="M4 2.5V11.5M4 11.5L1.8 9.3M4 11.5L6.2 9.3"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M10 11.5V2.5M10 2.5L7.8 4.7M10 2.5L12.2 4.7"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  価格安順
-                </Chip>
+                {/* 並び替えメニュー（価格・50音・新着） */}
+                <SortMenu value={sort} onChange={setSort} />
 
                 {/* 絞り込みボタン（押下でボトムシートを開く） */}
                 <button
