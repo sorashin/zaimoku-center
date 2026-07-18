@@ -1,6 +1,8 @@
 import type { CartItem } from '@/lib/cart/types';
 import { cartLineKey } from '@/lib/cart/types';
 import { estimateLineTotal, formatYen } from '@/lib/cart/estimate';
+import { priceDisplay } from '@/lib/format';
+import { usePriceMode } from '@/lib/priceDisplayStore';
 import { onImgError, PLACEHOLDER_IMAGE } from '@/lib/image';
 
 interface Props {
@@ -16,6 +18,8 @@ export function CartLineItem({ item, onQtyChange, onRemove }: Props) {
   const isSawn = item.shape === 'sawn';
   const subtotal = estimateLineTotal(item);
   const lineKey = cartLineKey(item);
+  const priceMode = usePriceMode();
+  const disp = priceDisplay(item.priceUnit, item.price, item.volumePerUnit, priceMode);
 
   return (
     <div className="flex gap-3 border-b border-hairline py-4">
@@ -52,6 +56,11 @@ export function CartLineItem({ item, onQtyChange, onRemove }: Props) {
             {item.variantLabel || item.dimensionLabel}
           </span>
         )}
+        <span className="text-[12px] text-ink-sub">
+          {disp.priceLabel}
+          {disp.unitLabel} × {item.qty}
+          {isSawn ? '本' : '点'}
+        </span>
 
         <div className="mt-1 flex items-center justify-between">
           {isSawn ? (

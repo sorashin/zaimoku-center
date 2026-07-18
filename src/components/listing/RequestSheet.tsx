@@ -3,7 +3,9 @@ import type { DetailView, VariantView } from '@/lib/detailView';
 import { onImgError, PLACEHOLDER_IMAGE } from '@/lib/image';
 import { useCart } from '@/lib/cart/useCart';
 import { openCart } from '@/lib/cart/store';
-import { estimateAmount, formatPrice } from '@/lib/format';
+import { estimateAmount, formatPrice, priceDisplay } from '@/lib/format';
+import { usePriceMode } from '@/lib/priceDisplayStore';
+import { PriceUnitToggle } from './PriceUnitToggle';
 import { VARIANT_SELECT_EVENT, type VariantSelectDetail } from './VariantPicker';
 
 interface Props {
@@ -58,6 +60,10 @@ export function RequestSheet({
   const active = selectedVariant ?? detail;
   const maxQty = Math.max(1, active.stock);
 
+  // 価格表示モード（立米単価 ⇄ 1枚あたり）。全アイランド共有。
+  const priceMode = usePriceMode();
+  const disp = priceDisplay(active.priceUnit, active.price, active.volumePerUnit, priceMode);
+
   // 概算金額
   const estimate = estimateAmount(active.priceUnit, active.price, active.volumePerUnit, qty);
   const volLine = isSawn ? `${active.volumePerUnit.toFixed(4)} ㎥/本 × ${qty} 本` : '';
@@ -99,12 +105,18 @@ export function RequestSheet({
         >
           <div className="min-w-0 flex-1">
             <div className="text-[18px] font-bold">
-              {active.priceLabel}
-              {active.unitLabel && (
-                <span className="text-[13px] font-normal text-ink-sub">{active.unitLabel}</span>
+              {disp.priceLabel}
+              {disp.unitLabel && (
+                <span className="text-[13px] font-normal text-ink-sub">{disp.unitLabel}</span>
               )}
             </div>
-            <div className="mt-0.5 text-[12px] text-ink-sub">{active.stockLine}</div>
+            {active.canSwitchUnit ? (
+              <div className="mt-1">
+                <PriceUnitToggle size="sm" />
+              </div>
+            ) : (
+              <div className="mt-0.5 text-[12px] text-ink-sub">{active.stockLine}</div>
+            )}
           </div>
           {canEdit ? (
             <a
@@ -129,11 +141,14 @@ export function RequestSheet({
       ) : (
         /* ===== デスクトップ: 右パネル CTAカード ===== */
         <div className="rounded-card border border-hairline bg-surface p-5 shadow-card">
-          <div className="text-[22px] font-bold">
-            {active.priceLabel}
-            {active.unitLabel && (
-              <span className="text-[14px] font-normal text-ink-sub">{active.unitLabel}</span>
-            )}
+          <div className="flex items-start justify-between gap-2">
+            <div className="text-[22px] font-bold">
+              {disp.priceLabel}
+              {disp.unitLabel && (
+                <span className="text-[14px] font-normal text-ink-sub">{disp.unitLabel}</span>
+              )}
+            </div>
+            {active.canSwitchUnit && <PriceUnitToggle />}
           </div>
           <div className="mt-1 text-[13px] text-ink-sub">{active.stockLine}</div>
           <div className="mt-1 text-[13px] text-ink-sub">{detail.minUnitLabel}</div>
@@ -218,8 +233,8 @@ export function RequestSheet({
                       <span className="text-[12px] text-ink-sub">{selectedVariant.label}</span>
                     )}
                     <span className="text-[13px] text-ink-sub">
-                      {active.priceLabel}
-                      {active.unitLabel} ・ {detail.seller.companyName}
+                      {disp.priceLabel}
+                      {disp.unitLabel} ・ {detail.seller.companyName}
                     </span>
                   </span>
                 </div>

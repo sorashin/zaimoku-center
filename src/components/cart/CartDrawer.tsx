@@ -3,6 +3,8 @@ import { useCart } from '@/lib/cart/useCart';
 import { cartLineKey } from '@/lib/cart/types';
 import { CART_OPEN_EVENT } from '@/lib/cart/store';
 import { estimateGrandTotal, formatYen } from '@/lib/cart/estimate';
+import { canSwitchPriceUnit } from '@/lib/format';
+import { PriceUnitToggle } from '@/components/listing/PriceUnitToggle';
 import { CartLineItem } from './CartLineItem';
 
 interface Props {
@@ -187,6 +189,11 @@ export function CartDrawer({ loggedIn }: Props) {
           </div>
         ) : (
           <>
+            {items.some((it) => canSwitchPriceUnit(it.priceUnit, it.volumePerUnit)) && (
+              <div className="flex items-center justify-end px-5 pb-1 pt-1">
+                <PriceUnitToggle size="sm" />
+              </div>
+            )}
             <div className="flex-1 overflow-y-auto px-5">
               {items.map((it) => (
                 <CartLineItem

@@ -64,9 +64,52 @@ export function formatPrice(price: number): string {
   return `¥${price.toLocaleString('ja-JP')}`;
 }
 
+/** mm 値を桁区切り整形（「2,000」）。単位「mm」は付けない。 */
+export function mmLabel(value: number): string {
+  return value.toLocaleString('ja-JP');
+}
+
 /** 価格単位の表示（per_m3 → /㎥, per_item → 空文字） */
 export function priceUnitLabel(unit: PriceUnit): string {
   return unit === 'per_m3' ? '/㎥' : '';
+}
+
+/** 価格表示の単位切り替え。'volume'=立米単価そのまま, 'piece'=1枚（1本）あたり。 */
+export type PriceDisplayMode = 'volume' | 'piece';
+
+/**
+ * 1枚（1本）あたりの価格（円）。per_m3 は 立米単価×材積、per_item は単価そのまま。
+ * 材積が無い（寸法未設定）場合は元の単価をそのまま返す。
+ */
+export function pricePerPiece(
+  priceUnit: PriceUnit,
+  price: number,
+  volume: number
+): number {
+  if (priceUnit !== 'per_m3' || volume <= 0) return price;
+  return Math.round(price * volume);
+}
+
+/**
+ * 価格ラベルと単位ラベルを表示モードに応じて返す。
+ * piece かつ per_m3 のときだけ「1枚あたり」に換算し、それ以外は volume と同じ。
+ * per_item はどちらのモードでも単価そのまま（切り替え不可）。
+ */
+export function priceDisplay(
+  priceUnit: PriceUnit,
+  price: number,
+  volume: number,
+  mode: PriceDisplayMode
+): { priceLabel: string; unitLabel: string } {
+  if (mode === 'piece' && priceUnit === 'per_m3' && volume > 0) {
+    return { priceLabel: formatPrice(pricePerPiece(priceUnit, price, volume)), unitLabel: '/枚' };
+  }
+  return { priceLabel: formatPrice(price), unitLabel: priceUnitLabel(priceUnit) };
+}
+
+/** per_m3 かつ材積があり、1枚あたり換算に意味がある（切り替え可能）か。 */
+export function canSwitchPriceUnit(priceUnit: PriceUnit, volume: number): boolean {
+  return priceUnit === 'per_m3' && volume > 0;
 }
 
 /** 1本あたりの材積（㎥）。寸法が無ければ 0 */
