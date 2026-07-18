@@ -7,6 +7,7 @@ import {
 } from '@/lib/modelOrientation';
 import { ModelViewer } from '@/components/viewer/ModelViewer';
 import { onImgError } from '@/lib/image';
+import { useDismissableSheet } from '@/lib/useDismissableSheet';
 import type { ModelFormat, ModelOrientation, PriceUnit, Shape } from '@/lib/types';
 
 // ===== 寸法・在庫・価格パターンのフォーム行 =====
@@ -212,6 +213,9 @@ export function UploadForm({ sellerName, initial }: Props) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+
+  // 確認ダイアログの退場アニメ付き開閉。送信中は閉じない（canClose=!submitting）。
+  const confirmSheet = useDismissableSheet(() => setConfirmOpen(false), !submitting);
 
   const species = speciesSel === 'その他' ? speciesOther.trim() : speciesSel;
   const isSawn = shape === 'sawn';
@@ -428,6 +432,7 @@ export function UploadForm({ sellerName, initial }: Props) {
       return;
     }
     setError('');
+    confirmSheet.reset();
     setConfirmOpen(true);
   }
 
@@ -1083,13 +1088,14 @@ export function UploadForm({ sellerName, initial }: Props) {
       {confirmOpen && (
         <>
           <div
-            onClick={() => !submitting && setConfirmOpen(false)}
+            onClick={() => confirmSheet.requestClose()}
             className="fixed inset-0 z-[70] bg-black/50"
-            style={{ animation: 'overlayFadeIn 0.2s ease' }}
+            style={confirmSheet.overlayStyle}
           />
           <div
-            className="fixed bottom-0 left-1/2 z-[71] w-full max-w-[480px] -translate-x-1/2 rounded-t-[20px] bg-surface px-5 pb-8 pt-5"
-            style={{ animation: 'sheetUp 0.3s ease' }}
+            className="fixed inset-x-0 bottom-0 z-[71] mx-auto w-full max-w-[480px] rounded-t-[20px] bg-surface px-5 pb-8 pt-5"
+            style={confirmSheet.sheetStyle}
+            onAnimationEnd={confirmSheet.onAnimationEnd}
             role="dialog"
             aria-modal="true"
           >
@@ -1129,7 +1135,7 @@ export function UploadForm({ sellerName, initial }: Props) {
             <div className="mt-5 flex gap-2.5">
               <button
                 type="button"
-                onClick={() => setConfirmOpen(false)}
+                onClick={() => confirmSheet.requestClose()}
                 disabled={submitting}
                 className="h-[50px] flex-1 rounded-btn border border-ink bg-surface text-[15px] font-semibold text-ink transition-colors hover:bg-surface-muted disabled:opacity-60"
               >

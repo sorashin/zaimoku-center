@@ -5,6 +5,7 @@ import { useCart } from '@/lib/cart/useCart';
 import { openCart } from '@/lib/cart/store';
 import { estimateAmount, formatPrice, priceDisplay } from '@/lib/format';
 import { usePriceMode } from '@/lib/priceDisplayStore';
+import { useDismissableSheet } from '@/lib/useDismissableSheet';
 import { PriceUnitToggle } from './PriceUnitToggle';
 import { VARIANT_SELECT_EVENT, type VariantSelectDetail } from './VariantPicker';
 
@@ -31,6 +32,8 @@ export function RequestSheet({
 }: Props) {
   const { addItem } = useCart();
   const [open, setOpen] = useState(false);
+  // 退場アニメ付きの開閉制御（sheetUp/Down・overlayFade・animationend unmount）を共通フックに集約。
+  const sheet = useDismissableSheet(() => setOpen(false));
   const [sent, setSent] = useState(false);
   const [qty, setQty] = useState(1);
 
@@ -71,9 +74,10 @@ export function RequestSheet({
   const openSheet = () => {
     setSent(false);
     setQty(1);
+    sheet.reset();
     setOpen(true);
   };
-  const closeSheet = () => setOpen(false);
+  const closeSheet = () => sheet.requestClose();
 
   function addToCart() {
     addItem({
@@ -190,11 +194,12 @@ export function RequestSheet({
           <div
             onClick={closeSheet}
             className="fixed inset-0 z-[70] bg-black/50"
-            style={{ animation: 'overlayFadeIn 0.2s ease' }}
+            style={sheet.overlayStyle}
           />
           <div
-            className="fixed bottom-0 left-1/2 z-[71] w-full max-w-[480px] -translate-x-1/2 rounded-t-[20px] bg-surface px-5 pb-8 pt-5"
-            style={{ animation: 'sheetUp 0.3s ease' }}
+            className="fixed inset-x-0 bottom-0 z-[71] mx-auto w-full max-w-[480px] rounded-t-[20px] bg-surface px-5 pb-8 pt-5"
+            style={sheet.sheetStyle}
+            onAnimationEnd={sheet.onAnimationEnd}
             role="dialog"
             aria-modal="true"
           >

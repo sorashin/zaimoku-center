@@ -8,6 +8,7 @@ import {
 } from '@/lib/listingFilter';
 import { WOOD_CLASS_LABELS, type WoodClassFilter } from '@/lib/species';
 import { mmLabel } from '@/lib/format';
+import { useDismissableSheet } from '@/lib/useDismissableSheet';
 import { RangeSlider } from './RangeSlider';
 
 interface Props {
@@ -108,16 +109,24 @@ function Segmented<T extends string>({
 export function FilterDialog({ open, value, sizeDomain, onApply, onClose }: Props) {
   // ダイアログ内はドラフト状態。開くたびに確定値で初期化する。
   const [draft, setDraft] = useState<FilterState>(value);
+  // 退場アニメ付きの開閉制御を共通フックに集約。既定の閉じ後処理は onClose。
+  // 「この条件で表示」は requestClose(onApply...) で退場後に適用する。
+  const sheet = useDismissableSheet(onClose);
 
   useEffect(() => {
-    if (open) setDraft(value);
+    if (open) {
+      setDraft(value);
+      sheet.reset();
+    }
+    // sheet.reset は安定参照。open/value 変化時のみ初期化する。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, value]);
 
   // 背面スクロールを止める + Escで閉じる
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') sheet.requestClose();
     };
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
@@ -126,7 +135,8 @@ export function FilterDialog({ open, value, sizeDomain, onApply, onClose }: Prop
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
     };
-  }, [open, onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   if (!open) return null;
 
@@ -134,24 +144,26 @@ export function FilterDialog({ open, value, sizeDomain, onApply, onClose }: Prop
     <>
       {/* オーバーレイ */}
       <div
-        onClick={onClose}
+        onClick={() => sheet.requestClose()}
         className="fixed inset-0 z-[70] bg-black/50"
-        style={{ animation: 'overlayFadeIn 0.2s ease' }}
+        style={sheet.overlayStyle}
       />
-      {/* ボトムシート（既存の RequestSheet / UploadForm と同じ作り） */}
+      {/* ボトムシート（既存の RequestSheet / UploadForm と同じ作り）。
+          中央寄せは inset-x-0 + mx-auto（transform 不使用）で左ずれを防ぐ。 */}
       <div
         role="dialog"
         aria-modal="true"
         aria-label="絞り込み"
-        className="fixed bottom-0 left-1/2 z-[71] flex max-h-[88vh] w-full max-w-[480px] -translate-x-1/2 flex-col overflow-hidden rounded-t-[20px] bg-surface"
-        style={{ animation: 'sheetUp 0.3s ease' }}
+        className="fixed inset-x-0 bottom-0 z-[71] mx-auto flex max-h-[88vh] w-full max-w-[480px] flex-col overflow-hidden rounded-t-[20px] bg-surface"
+        style={sheet.sheetStyle}
+        onAnimationEnd={sheet.onAnimationEnd}
       >
         {/* ヘッダー */}
         <div className="flex items-center justify-between border-b border-hairline px-5 py-4">
           <h2 className="m-0 text-[17px] font-semibold">絞り込み</h2>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => sheet.requestClose()}
             aria-label="閉じる"
             className="flex h-9 w-9 items-center justify-center rounded-pill border-none bg-surface-muted"
           >
@@ -231,7 +243,7 @@ export function FilterDialog({ open, value, sizeDomain, onApply, onClose }: Prop
           </button>
           <button
             type="button"
-            onClick={() => onApply(draft)}
+            onClick={() => sheet.requestClose(() => onApply(draft))}
             className="flex-1 rounded-btn bg-primary px-4 py-3 text-[15px] font-bold text-ink transition-colors hover:bg-primary-active"
           >
             この条件で表示
