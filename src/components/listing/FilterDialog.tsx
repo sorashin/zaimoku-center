@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
 import {
   type FilterState,
   type ShapeFilter,
@@ -10,9 +9,6 @@ import {
 import { WOOD_CLASS_LABELS, type WoodClassFilter } from '@/lib/species';
 import { mmLabel } from '@/lib/format';
 import { RangeSlider } from './RangeSlider';
-
-/** layoutId: 「絞り込み」ボタンとダイアログを共有し、ボタンが拡大してUIになる演出に使う。 */
-const LAYOUT_ID = 'filter-surface';
 
 interface Props {
   open: boolean;
@@ -132,125 +128,116 @@ export function FilterDialog({ open, value, sizeDomain, onApply, onClose }: Prop
     };
   }, [open, onClose]);
 
+  if (!open) return null;
+
   return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center"
-          initial={{ background: 'rgba(0,0,0,0)' }}
-          animate={{ background: 'rgba(0,0,0,0.35)' }}
-          exit={{ background: 'rgba(0,0,0,0)' }}
-          onClick={onClose}
-        >
-          <motion.div
-            layoutId={LAYOUT_ID}
-            onClick={(e) => e.stopPropagation()}
-            className="flex max-h-[88vh] w-full flex-col overflow-hidden rounded-t-[20px] bg-surface shadow-[rgba(0,0,0,0.18)_0_-4px_24px_0] sm:max-w-[440px] sm:rounded-[20px]"
+    <>
+      {/* オーバーレイ */}
+      <div
+        onClick={onClose}
+        className="fixed inset-0 z-[70] bg-black/50"
+        style={{ animation: 'overlayFadeIn 0.2s ease' }}
+      />
+      {/* ボトムシート（既存の RequestSheet / UploadForm と同じ作り） */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="絞り込み"
+        className="fixed bottom-0 left-1/2 z-[71] flex max-h-[88vh] w-full max-w-[480px] -translate-x-1/2 flex-col overflow-hidden rounded-t-[20px] bg-surface"
+        style={{ animation: 'sheetUp 0.3s ease' }}
+      >
+        {/* ヘッダー */}
+        <div className="flex items-center justify-between border-b border-hairline px-5 py-4">
+          <h2 className="m-0 text-[17px] font-semibold">絞り込み</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="閉じる"
+            className="flex h-9 w-9 items-center justify-center rounded-pill border-none bg-surface-muted"
           >
-            {/* ヘッダー */}
-            <div className="flex items-center justify-between border-b border-hairline px-5 py-4">
-              <h2 className="m-0 text-[17px] font-semibold">絞り込み</h2>
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="閉じる"
-                className="flex h-8 w-8 items-center justify-center rounded-pill text-ink-sub hover:bg-surface-muted"
-              >
-                <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-                  <path
-                    d="M1.5 1.5L11.5 11.5M11.5 1.5L1.5 11.5"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </button>
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+              <path
+                d="M1.5 1.5L11.5 11.5M11.5 1.5L1.5 11.5"
+                stroke="#222222"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        </div>
+
+        {/* 本文 */}
+        <div className="flex-1 overflow-y-auto px-5 py-5">
+          {/* サイズ */}
+          <section>
+            <h3 className="mb-2 text-[13px] font-semibold text-ink-sub">サイズ（mm）</h3>
+            <div className="flex flex-col gap-4">
+              <SizeRow
+                label="長手"
+                value={draft.length}
+                domain={sizeDomain.length}
+                onChange={(length) => setDraft((d) => ({ ...d, length }))}
+              />
+              <SizeRow
+                label="短手"
+                value={draft.width}
+                domain={sizeDomain.width}
+                onChange={(width) => setDraft((d) => ({ ...d, width }))}
+              />
+              <SizeRow
+                label="厚み"
+                value={draft.thickness}
+                domain={sizeDomain.thickness}
+                onChange={(thickness) => setDraft((d) => ({ ...d, thickness }))}
+              />
             </div>
+            <p className="mt-2 text-[12px] text-ink-faint">
+              ※サイズを指定すると一点モノは除外されます
+            </p>
+          </section>
 
-            {/* 本文 */}
-            <motion.div
-              className="flex-1 overflow-y-auto px-5 py-5"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1, transition: { delay: 0.12 } }}
-              exit={{ opacity: 0 }}
-            >
-              {/* サイズ */}
-              <section>
-                <h3 className="mb-2 text-[13px] font-semibold text-ink-sub">サイズ（mm）</h3>
-                <div className="flex flex-col gap-4">
-                  <SizeRow
-                    label="長手"
-                    value={draft.length}
-                    domain={sizeDomain.length}
-                    onChange={(length) => setDraft((d) => ({ ...d, length }))}
-                  />
-                  <SizeRow
-                    label="短手"
-                    value={draft.width}
-                    domain={sizeDomain.width}
-                    onChange={(width) => setDraft((d) => ({ ...d, width }))}
-                  />
-                  <SizeRow
-                    label="厚み"
-                    value={draft.thickness}
-                    domain={sizeDomain.thickness}
-                    onChange={(thickness) => setDraft((d) => ({ ...d, thickness }))}
-                  />
-                </div>
-                <p className="mt-2 text-[12px] text-ink-faint">
-                  ※サイズを指定すると一点モノは除外されます
-                </p>
-              </section>
+          {/* 形状 */}
+          <section className="mt-6">
+            <h3 className="mb-3 text-[13px] font-semibold text-ink-sub">種別</h3>
+            <Segmented
+              options={SHAPE_OPTIONS}
+              value={draft.shape}
+              onChange={(shape) => setDraft((d) => ({ ...d, shape }))}
+            />
+          </section>
 
-              {/* 形状 */}
-              <section className="mt-6">
-                <h3 className="mb-3 text-[13px] font-semibold text-ink-sub">種別</h3>
-                <Segmented
-                  options={SHAPE_OPTIONS}
-                  value={draft.shape}
-                  onChange={(shape) => setDraft((d) => ({ ...d, shape }))}
-                />
-              </section>
+          {/* 樹種分類 */}
+          <section className="mt-6">
+            <h3 className="mb-3 text-[13px] font-semibold text-ink-sub">樹種</h3>
+            <Segmented
+              options={WOOD_OPTIONS}
+              value={draft.woodClass}
+              onChange={(woodClass) => setDraft((d) => ({ ...d, woodClass }))}
+            />
+          </section>
+        </div>
 
-              {/* 樹種分類 */}
-              <section className="mt-6">
-                <h3 className="mb-3 text-[13px] font-semibold text-ink-sub">樹種</h3>
-                <Segmented
-                  options={WOOD_OPTIONS}
-                  value={draft.woodClass}
-                  onChange={(woodClass) => setDraft((d) => ({ ...d, woodClass }))}
-                />
-              </section>
-            </motion.div>
-
-            {/* フッター */}
-            <motion.div
-              className="flex items-center gap-3 border-t border-hairline px-5 py-4"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1, transition: { delay: 0.12 } }}
-              exit={{ opacity: 0 }}
-              style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))' }}
-            >
-              <button
-                type="button"
-                onClick={() => setDraft(EMPTY_FILTER)}
-                className="rounded-btn px-4 py-3 text-[15px] font-medium text-ink-sub hover:bg-surface-muted"
-              >
-                クリア
-              </button>
-              <button
-                type="button"
-                onClick={() => onApply(draft)}
-                className="flex-1 rounded-btn bg-primary px-4 py-3 text-[15px] font-bold text-ink transition-colors hover:bg-primary-active"
-              >
-                この条件で表示
-              </button>
-            </motion.div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        {/* フッター */}
+        <div
+          className="flex items-center gap-3 border-t border-hairline px-5 py-4"
+          style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))' }}
+        >
+          <button
+            type="button"
+            onClick={() => setDraft(EMPTY_FILTER)}
+            className="rounded-btn px-4 py-3 text-[15px] font-medium text-ink-sub hover:bg-surface-muted"
+          >
+            クリア
+          </button>
+          <button
+            type="button"
+            onClick={() => onApply(draft)}
+            className="flex-1 rounded-btn bg-primary px-4 py-3 text-[15px] font-bold text-ink transition-colors hover:bg-primary-active"
+          >
+            この条件で表示
+          </button>
+        </div>
+      </div>
+    </>
   );
 }
-
-export { LAYOUT_ID as FILTER_LAYOUT_ID };

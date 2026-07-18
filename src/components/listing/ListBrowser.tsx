@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
 import type { ListingCardView } from '@/lib/listingView';
 import { onImgError, PLACEHOLDER_IMAGE } from '@/lib/image';
 import { priceDisplay } from '@/lib/format';
@@ -14,7 +13,7 @@ import {
 import { FavoriteButton } from '@/components/FavoriteButton';
 import { ListingCard } from './ListingCard';
 import { PriceUnitToggle } from './PriceUnitToggle';
-import { FilterDialog, FILTER_LAYOUT_ID } from './FilterDialog';
+import { FilterDialog } from './FilterDialog';
 import { ListingsMap } from '../map/ListingsMap';
 
 interface Props {
@@ -107,14 +106,12 @@ export function ListBrowser({ items, savedIds = [], loggedIn = false }: Props) {
                   価格安順
                 </Chip>
 
-                {/* 絞り込みボタン（押下でダイアログへ layoutId 拡大） */}
-                <motion.button
-                  layoutId={filterOpen ? undefined : FILTER_LAYOUT_ID}
+                {/* 絞り込みボタン（押下でボトムシートを開く） */}
+                <button
                   type="button"
                   onClick={() => setFilterOpen(true)}
                   className="flex items-center gap-1.5 whitespace-nowrap rounded-pill border px-4 py-2.5 text-[14px] font-medium transition-colors"
                   style={{
-                    borderRadius: 9999,
                     background: filterCount > 0 ? '#222222' : '#ffffff',
                     color: filterCount > 0 ? '#ffffff' : '#222222',
                     borderColor: filterCount > 0 ? '#222222' : 'var(--color-hairline)',
@@ -134,7 +131,7 @@ export function ListBrowser({ items, savedIds = [], loggedIn = false }: Props) {
                       {filterCount}
                     </span>
                   )}
-                </motion.button>
+                </button>
               </div>
               {anySwitchable && <PriceUnitToggle className="flex-shrink-0" />}
             </div>
