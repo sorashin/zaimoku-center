@@ -5,21 +5,13 @@ import type { CreateListingInput, UpdateListingInput } from '@/lib/server/data';
 import type { ListingPhoto, ListingVariant, Shape, PriceUnit, ModelFormat } from '@/lib/types';
 import { normalizeOrientation } from '@/lib/modelOrientation';
 import { mirrorFromVariants } from '@/lib/format';
+import { CLASSIFIED_SPECIES } from '@/lib/species';
 
-/** 樹種の選択肢（「その他」は自由入力に切替） */
-export const SPECIES_OPTIONS = [
-  'カラマツ',
-  'アカマツ',
-  'スギ',
-  'ヒノキ',
-  'カバ',
-  'ホオノキ',
-  'クリ',
-  'ナラ',
-  'サクラ',
-  'ケヤキ',
-  'その他',
-] as const;
+/**
+ * 樹種の選択肢（「その他」は自由入力に切替）。
+ * 分類マスタ（species.ts）の先頭リストから導出し、選択肢＝分類済みを担保する。
+ */
+export const SPECIES_OPTIONS = [...CLASSIFIED_SPECIES, 'その他'] as const;
 
 /** フォームから送られてくる生ペイロード（JSON） */
 export interface ListingFormPayload {
