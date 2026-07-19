@@ -1,8 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ListingCardView } from '@/lib/listingView';
 import { onImgError, PLACEHOLDER_IMAGE } from '@/lib/image';
+import { priceDisplay } from '@/lib/format';
+import { usePriceMode } from '@/lib/priceDisplayStore';
+import {
+  type FilterState,
+  EMPTY_FILTER,
+  activeFilterCount,
+  matchesFilter,
+  sizeDomainFromItems,
+} from '@/lib/listingFilter';
+import { type SortKey, DEFAULT_SORT, sortListings } from '@/lib/listingSort';
 import { FavoriteButton } from '@/components/FavoriteButton';
 import { ListingCard } from './ListingCard';
+import { PriceUnitToggle } from './PriceUnitToggle';
+import { SortMenu } from './SortMenu';
+import { FilterDialog } from './FilterDialog';
 import { ListingsMap } from '../map/ListingsMap';
 
 interface Props {
@@ -13,112 +26,83 @@ interface Props {
   loggedIn?: boolean;
 }
 
-type SortState = 'newest' | 'price_asc';
-
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex items-center gap-1.5 whitespace-nowrap rounded-pill border px-4 py-2.5 text-[14px] font-medium transition-colors"
-      style={{
-        background: active ? '#222222' : '#ffffff',
-        color: active ? '#ffffff' : '#222222',
-        borderColor: active ? '#222222' : 'var(--color-hairline)',
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
 export function ListBrowser({ items, savedIds = [], loggedIn = false }: Props) {
   const savedSet = useMemo(() => new Set(savedIds), [savedIds]);
-  const [query, setQuery] = useState('');
-  const [sort, setSort] = useState<SortState>('newest');
-  const [sawnOnly, setSawnOnly] = useState(false);
-  const [irregularOnly, setIrregularOnly] = useState(false);
+  const [sort, setSort] = useState<SortKey>(DEFAULT_SORT);
+  const [filter, setFilter] = useState<FilterState>(EMPTY_FILTER);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   // モバイル: マップオーバーレイの開閉
   const [mapOpen, setMapOpen] = useState(false);
   // モバイルマップ: カルーセルで選択中の出品id
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  const filterCount = activeFilterCount(filter);
+  // スライダーの端は全出品の実測レンジ。端に達すると「指定なし」になる。
+  const sizeDomain = useMemo(() => sizeDomainFromItems(items), [items]);
+
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    let list = items.filter((it) => {
-      if (sawnOnly && !irregularOnly && it.shape !== 'sawn') return false;
-      if (irregularOnly && !sawnOnly && it.shape !== 'irregular') return false;
-      if (q) {
-        const hay = `${it.title} ${it.species}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-    if (sort === 'price_asc') {
-      list = [...list].sort((a, b) => a.price - b.price);
-    }
-    return list;
-  }, [items, query, sort, sawnOnly, irregularOnly]);
+    const list = items.filter((it) => matchesFilter(it, filter));
+    return sortListings(list, sort);
+  }, [items, sort, filter]);
+
+  // 立米単価⇄1枚あたりを切り替えられる出品が1件でもあれば、一覧上部にトグルを出す。
+  const anySwitchable = useMemo(() => filtered.some((it) => it.canSwitchUnit), [filtered]);
 
   return (
     <div className="mx-auto max-w-[1440px]">
       <div className="flex">
         {/* ===== 左: 検索・フィルター・カードグリッド ===== */}
         <div className="min-w-0 flex-1">
-          {/* 検索ピル */}
+          {/* フィルターチップ + 価格単位トグル */}
           <div className="px-4 pt-4 md:px-6">
-            <label className="flex items-center gap-2.5 rounded-pill border border-hairline bg-surface px-4 py-3 shadow-card">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <circle cx="7" cy="7" r="5.2" stroke="#222222" strokeWidth="1.8" />
-                <path d="M11 11L14.5 14.5" stroke="#222222" strokeWidth="1.8" strokeLinecap="round" />
-              </svg>
-              <input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="樹種やサイズで検索"
-                className="w-full border-none bg-transparent text-[14px] font-medium text-ink outline-none placeholder:text-ink-faint"
-              />
-            </label>
+            <div className="flex items-center gap-2 py-3">
+              {/* 並び替えメニュー。ドロップダウンが overflow-x-auto にクリップされないよう
+                  スクロール領域の外（フレックス直下）に置く。 */}
+              <SortMenu value={sort} onChange={setSort} />
 
-            {/* フィルターチップ */}
-            <div className="no-scrollbar flex gap-2 overflow-x-auto py-3">
-              <Chip active={sort === 'price_asc'} onClick={() => setSort((s) => (s === 'price_asc' ? 'newest' : 'price_asc'))}>
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                  <path
-                    d="M4 2.5V11.5M4 11.5L1.8 9.3M4 11.5L6.2 9.3"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M10 11.5V2.5M10 2.5L7.8 4.7M10 2.5L12.2 4.7"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                価格安順
-              </Chip>
-              <Chip active={sawnOnly} onClick={() => setSawnOnly((v) => !v)}>
-                製材済み
-              </Chip>
-              <Chip active={irregularOnly} onClick={() => setIrregularOnly((v) => !v)}>
-                不定形材
-              </Chip>
+              <div className="no-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto">
+                {/* 絞り込みボタン（押下でボトムシートを開く） */}
+                <button
+                  type="button"
+                  onClick={() => setFilterOpen(true)}
+                  className="flex items-center gap-1.5 whitespace-nowrap rounded-pill border px-4 py-2.5 text-[14px] font-medium transition-colors"
+                  style={{
+                    background: filterCount > 0 ? '#222222' : '#ffffff',
+                    color: filterCount > 0 ? '#ffffff' : '#222222',
+                    borderColor: filterCount > 0 ? '#222222' : 'var(--color-hairline)',
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                    <path
+                      d="M1.5 3H12.5M3.5 7H10.5M5.5 11H8.5"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  絞り込み
+                  {filterCount > 0 && (
+                    <span className="ml-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-pill bg-white px-1 text-[11px] font-bold leading-none text-ink">
+                      {filterCount}
+                    </span>
+                  )}
+                </button>
+              </div>
+              {anySwitchable && <PriceUnitToggle className="flex-shrink-0" />}
             </div>
           </div>
+
+          <FilterDialog
+            open={filterOpen}
+            value={filter}
+            sizeDomain={sizeDomain}
+            onApply={(next) => {
+              setFilter(next);
+              setFilterOpen(false);
+            }}
+            onClose={() => setFilterOpen(false)}
+          />
 
           {/* カードグリッド */}
           {filtered.length === 0 ? (
@@ -232,6 +216,7 @@ function MapCarousel({
   loggedIn: boolean;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const priceMode = usePriceMode();
   // プログラム由来のスクロール中は onScroll の selectedId 更新を抑止
   const programmatic = useRef(false);
 
@@ -280,7 +265,9 @@ function MapCarousel({
         className="no-scrollbar flex gap-3 overflow-x-auto px-4 pb-5"
         style={{ scrollSnapType: 'x mandatory' }}
       >
-        {items.map((item) => (
+        {items.map((item) => {
+          const disp = priceDisplay(item.priceUnit, item.price, item.volumePerUnit, priceMode);
+          return (
           <a
             key={item.id}
             href={`/items/${item.id}`}
@@ -304,9 +291,9 @@ function MapCarousel({
               </div>
               <div className="mt-0.5 truncate text-[12px] text-ink-sub">{item.dimensionsLabel}</div>
               <div className="mt-1 text-[16px] font-semibold">
-                {item.priceLabel}
-                {item.unitLabel && (
-                  <span className="text-[12px] font-normal text-ink-sub">{item.unitLabel}</span>
+                {disp.priceLabel}
+                {disp.unitLabel && (
+                  <span className="text-[12px] font-normal text-ink-sub">{disp.unitLabel}</span>
                 )}
               </div>
               <div className="mt-1 flex items-center gap-1.5">
@@ -328,7 +315,8 @@ function MapCarousel({
               />
             </div>
           </a>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

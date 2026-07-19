@@ -1,6 +1,8 @@
 import type { ListingCardView } from '@/lib/listingView';
 import { FavoriteButton } from '@/components/FavoriteButton';
 import { onImgError, PLACEHOLDER_IMAGE } from '@/lib/image';
+import { priceDisplay } from '@/lib/format';
+import { usePriceMode } from '@/lib/priceDisplayStore';
 
 interface Props {
   item: ListingCardView;
@@ -23,6 +25,8 @@ export function ListingCard({
   initialSaved = false,
   loggedIn = false,
 }: Props) {
+  const priceMode = usePriceMode();
+  const disp = priceDisplay(item.priceUnit, item.price, item.volumePerUnit, priceMode);
   return (
     <a
       href={`/items/${item.id}`}
@@ -95,9 +99,9 @@ export function ListingCard({
         <div className="mt-1.5 text-[13px] text-ink-sub">{item.dimensionsLabel}</div>
 
         <div className="mt-1.5 text-[18px] font-semibold">
-          {item.priceLabel}
-          {item.unitLabel && (
-            <span className="text-[13px] font-normal text-ink-sub">{item.unitLabel}</span>
+          {disp.priceLabel}
+          {disp.unitLabel && (
+            <span className="text-[13px] font-normal text-ink-sub">{disp.unitLabel}</span>
           )}
         </div>
 

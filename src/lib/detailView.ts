@@ -1,5 +1,6 @@
 import type { ListingWithSeller, ModelOrientation, PriceUnit } from './types';
 import {
+  canSwitchPriceUnit,
   dimsLabel,
   formatPrice,
   priceUnitLabel,
@@ -28,6 +29,8 @@ export interface VariantView {
   unitLabel: string;
   /** 概算計算用の1本あたり材積（㎥） */
   volumePerUnit: number;
+  /** 立米単価⇄1枚あたりの切り替えが可能か（per_m3 かつ材積あり）。 */
+  canSwitchUnit: boolean;
 }
 
 /** RequestSheet / MediaViewer 等の island に渡す、整形済みの軽量データ。 */
@@ -49,6 +52,8 @@ export interface DetailView {
   dimensionLabel: string;
   /** 概算計算用の1本あたり材積（㎥）。sawn 以外は 0 */
   volumePerUnit: number;
+  /** 立米単価⇄1枚あたりの切り替えが可能か（per_m3 かつ材積あり）。 */
+  canSwitchUnit: boolean;
   priceLabel: string;
   unitLabel: string;
   shapeLabel: string;
@@ -143,6 +148,7 @@ export function toDetailView(listing: ListingWithSeller): DetailView {
             priceLabel: formatPrice(v.price),
             unitLabel: priceUnitLabel(v.priceUnit),
             volumePerUnit: vol,
+            canSwitchUnit: canSwitchPriceUnit(v.priceUnit, vol),
           };
         })
     : [];
@@ -163,6 +169,7 @@ export function toDetailView(listing: ListingWithSeller): DetailView {
     priceUnit: listing.priceUnit,
     dimensionLabel: dimensionLabel(listing),
     volumePerUnit: volumePerUnit(listing),
+    canSwitchUnit: canSwitchPriceUnit(listing.priceUnit, volumePerUnit(listing)),
     priceLabel: formatPrice(listing.price),
     unitLabel,
     shapeLabel: isSawn ? '製材済み' : '不定形材',

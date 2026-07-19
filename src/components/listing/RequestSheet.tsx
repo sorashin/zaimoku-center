@@ -3,7 +3,10 @@ import type { DetailView, VariantView } from '@/lib/detailView';
 import { onImgError, PLACEHOLDER_IMAGE } from '@/lib/image';
 import { useCart } from '@/lib/cart/useCart';
 import { openCart } from '@/lib/cart/store';
-import { estimateAmount, formatPrice } from '@/lib/format';
+import { estimateAmount, formatPrice, priceDisplay } from '@/lib/format';
+import { usePriceMode } from '@/lib/priceDisplayStore';
+import { useDismissableSheet } from '@/lib/useDismissableSheet';
+import { PriceUnitToggle } from './PriceUnitToggle';
 import { VARIANT_SELECT_EVENT, type VariantSelectDetail } from './VariantPicker';
 
 interface Props {
@@ -29,6 +32,8 @@ export function RequestSheet({
 }: Props) {
   const { addItem } = useCart();
   const [open, setOpen] = useState(false);
+  // 退場アニメ付きの開閉制御（sheetUp/Down・overlayFade・animationend unmount）を共通フックに集約。
+  const sheet = useDismissableSheet(() => setOpen(false));
   const [sent, setSent] = useState(false);
   const [qty, setQty] = useState(1);
 
@@ -58,6 +63,10 @@ export function RequestSheet({
   const active = selectedVariant ?? detail;
   const maxQty = Math.max(1, active.stock);
 
+  // 価格表示モード（立米単価 ⇄ 1枚あたり）。全アイランド共有。
+  const priceMode = usePriceMode();
+  const disp = priceDisplay(active.priceUnit, active.price, active.volumePerUnit, priceMode);
+
   // 概算金額
   const estimate = estimateAmount(active.priceUnit, active.price, active.volumePerUnit, qty);
   const volLine = isSawn ? `${active.volumePerUnit.toFixed(4)} ㎥/本 × ${qty} 本` : '';
@@ -65,9 +74,10 @@ export function RequestSheet({
   const openSheet = () => {
     setSent(false);
     setQty(1);
+    sheet.reset();
     setOpen(true);
   };
-  const closeSheet = () => setOpen(false);
+  const closeSheet = () => sheet.requestClose();
 
   function addToCart() {
     addItem({
@@ -99,12 +109,18 @@ export function RequestSheet({
         >
           <div className="min-w-0 flex-1">
             <div className="text-[18px] font-bold">
-              {active.priceLabel}
-              {active.unitLabel && (
-                <span className="text-[13px] font-normal text-ink-sub">{active.unitLabel}</span>
+              {disp.priceLabel}
+              {disp.unitLabel && (
+                <span className="text-[13px] font-normal text-ink-sub">{disp.unitLabel}</span>
               )}
             </div>
-            <div className="mt-0.5 text-[12px] text-ink-sub">{active.stockLine}</div>
+            {active.canSwitchUnit ? (
+              <div className="mt-1">
+                <PriceUnitToggle size="sm" />
+              </div>
+            ) : (
+              <div className="mt-0.5 text-[12px] text-ink-sub">{active.stockLine}</div>
+            )}
           </div>
           {canEdit ? (
             <a
@@ -129,11 +145,14 @@ export function RequestSheet({
       ) : (
         /* ===== デスクトップ: 右パネル CTAカード ===== */
         <div className="rounded-card border border-hairline bg-surface p-5 shadow-card">
-          <div className="text-[22px] font-bold">
-            {active.priceLabel}
-            {active.unitLabel && (
-              <span className="text-[14px] font-normal text-ink-sub">{active.unitLabel}</span>
-            )}
+          <div className="flex items-start justify-between gap-2">
+            <div className="text-[22px] font-bold">
+              {disp.priceLabel}
+              {disp.unitLabel && (
+                <span className="text-[14px] font-normal text-ink-sub">{disp.unitLabel}</span>
+              )}
+            </div>
+            {active.canSwitchUnit && <PriceUnitToggle />}
           </div>
           <div className="mt-1 text-[13px] text-ink-sub">{active.stockLine}</div>
           <div className="mt-1 text-[13px] text-ink-sub">{detail.minUnitLabel}</div>
@@ -175,11 +194,12 @@ export function RequestSheet({
           <div
             onClick={closeSheet}
             className="fixed inset-0 z-[70] bg-black/50"
-            style={{ animation: 'overlayFadeIn 0.2s ease' }}
+            style={sheet.overlayStyle}
           />
           <div
-            className="fixed bottom-0 left-1/2 z-[71] w-full max-w-[480px] -translate-x-1/2 rounded-t-[20px] bg-surface px-5 pb-8 pt-5"
-            style={{ animation: 'sheetUp 0.3s ease' }}
+            className="fixed inset-x-0 bottom-0 z-[71] mx-auto w-full max-w-[480px] rounded-t-[20px] bg-surface px-5 pb-8 pt-5"
+            style={sheet.sheetStyle}
+            onAnimationEnd={sheet.onAnimationEnd}
             role="dialog"
             aria-modal="true"
           >
@@ -218,8 +238,8 @@ export function RequestSheet({
                       <span className="text-[12px] text-ink-sub">{selectedVariant.label}</span>
                     )}
                     <span className="text-[13px] text-ink-sub">
-                      {active.priceLabel}
-                      {active.unitLabel} ・ {detail.seller.companyName}
+                      {disp.priceLabel}
+                      {disp.unitLabel} ・ {detail.seller.companyName}
                     </span>
                   </span>
                 </div>

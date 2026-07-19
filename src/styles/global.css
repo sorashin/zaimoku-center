@@ -84,13 +84,34 @@ textarea::placeholder {
   }
 }
 
-/* ボトムシートのせり上がり（購入リクエスト） */
+/* ボトムシートのせり上がり（購入リクエスト）。
+   中央寄せは transform を使わず（inset-x-0 + mx-auto）縦移動のみで行うことで、
+   アニメ前後の translateX リセットによる左ずれを防ぐ。 */
 @keyframes sheetUp {
   from {
-    transform: translate(-50%, 100%);
+    transform: translateY(100%);
   }
   to {
-    transform: translate(-50%, 0);
+    transform: translateY(0);
+  }
+}
+
+/* ボトムシートの退場（下スライド）。overlayFadeOut と併用。 */
+@keyframes sheetDown {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes overlayFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
   }
 }
 

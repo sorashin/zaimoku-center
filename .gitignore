@@ -44,3 +44,6 @@ assets-src/
 *.ply
 *.ksplat
 *.splat
+
+# DBバックアップ（ローカル作業用・コミットしない）
+backups/

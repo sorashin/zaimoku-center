@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { VariantView } from '@/lib/detailView';
+import { priceDisplay } from '@/lib/format';
+import { usePriceMode } from '@/lib/priceDisplayStore';
+import { PriceUnitToggle } from './PriceUnitToggle';
 
 /**
  * 詳細画面の寸法・在庫・価格パターン選択（チップUI）。
@@ -31,6 +34,7 @@ interface Props {
 
 export function VariantPicker({ listingId, variants }: Props) {
   const [selectedId, setSelectedId] = useState(variants[0]?.id ?? '');
+  const priceMode = usePriceMode();
 
   // マウント時に初期選択を配信（RequestSheet が初期値を拾えるよう）。
   useEffect(() => {
@@ -47,17 +51,30 @@ export function VariantPicker({ listingId, variants }: Props) {
   };
 
   const selected = variants.find((v) => v.id === selectedId) ?? variants[0]!;
+  const selectedDisp = priceDisplay(
+    selected.priceUnit,
+    selected.price,
+    selected.volumePerUnit,
+    priceMode
+  );
+  // いずれかのパターンが㎥単価⇄1枚あたりの切替対象なら、トグルを出す。
+  const anySwitchable = variants.some((v) => v.canSwitchUnit);
 
   return (
     <div className="px-4 pt-5 md:px-0">
-      <div className="mb-2.5 flex items-baseline justify-between">
+      <div className="mb-2.5 flex items-baseline justify-between gap-2">
         <h2 className="text-[16px] font-semibold">寸法・パターンを選択</h2>
-        <span className="text-[13px] text-ink-sub">{variants.length} パターン</span>
+        {anySwitchable ? (
+          <PriceUnitToggle size="sm" />
+        ) : (
+          <span className="text-[13px] text-ink-sub">{variants.length} パターン</span>
+        )}
       </div>
       <div className="flex flex-wrap gap-2">
         {variants.map((v) => {
           const active = v.id === selectedId;
           const soldOut = v.stock <= 0;
+          const disp = priceDisplay(v.priceUnit, v.price, v.volumePerUnit, priceMode);
           return (
             <button
               key={v.id}
@@ -73,8 +90,8 @@ export function VariantPicker({ listingId, variants }: Props) {
             >
               <span className="text-[14px] font-semibold">{v.label}</span>
               <span className={`text-[12px] ${active ? 'text-surface/80' : 'text-ink-sub'}`}>
-                {v.priceLabel}
-                {v.unitLabel} ・ {soldOut ? '在庫なし' : v.stockLine}
+                {disp.priceLabel}
+                {disp.unitLabel} ・ {soldOut ? '在庫なし' : v.stockLine}
               </span>
             </button>
           );
@@ -82,8 +99,8 @@ export function VariantPicker({ listingId, variants }: Props) {
       </div>
       {/* 選択中パターンの寸法を補足表示 */}
       <p className="mt-2.5 text-[13px] text-ink-sub">
-        選択中: {selected.dimsLabel} ・ {selected.priceLabel}
-        {selected.unitLabel}
+        選択中: {selected.dimsLabel} ・ {selectedDisp.priceLabel}
+        {selectedDisp.unitLabel}
       </p>
     </div>
   );
