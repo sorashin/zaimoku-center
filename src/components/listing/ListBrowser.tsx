@@ -57,10 +57,11 @@ export function ListBrowser({ items, savedIds = [], loggedIn = false }: Props) {
           {/* フィルターチップ + 価格単位トグル */}
           <div className="px-4 pt-4 md:px-6">
             <div className="flex items-center gap-2 py-3">
-              <div className="no-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto">
-                {/* 並び替えメニュー（価格・50音・新着） */}
-                <SortMenu value={sort} onChange={setSort} />
+              {/* 並び替えメニュー。ドロップダウンが overflow-x-auto にクリップされないよう
+                  スクロール領域の外（フレックス直下）に置く。 */}
+              <SortMenu value={sort} onChange={setSort} />
 
+              <div className="no-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto">
                 {/* 絞り込みボタン（押下でボトムシートを開く） */}
                 <button
                   type="button"
