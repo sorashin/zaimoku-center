@@ -5,20 +5,26 @@ import { CART_OPEN_EVENT } from '@/lib/cart/store';
 import { estimateGrandTotal, formatYen } from '@/lib/cart/estimate';
 import { canSwitchPriceUnit } from '@/lib/format';
 import { PriceUnitToggle } from '@/components/listing/PriceUnitToggle';
+import type { BuyerProfile } from '@/lib/server/data/types';
 import { CartLineItem } from './CartLineItem';
+import { BuyerInfoForm, type BuyerFormValue } from './BuyerInfoForm';
 
 interface Props {
   loggedIn: boolean;
+  /** 購入者情報フォームの初期値（profiles 由来。未ログインは null）。 */
+  buyerDefaults?: BuyerProfile | null;
 }
 
 /**
  * 右からスライドインするカートドロワー。CART_OPEN_EVENT で開く。
- * 末尾の「購入リクエスト」ボタンから /api/cart-request へまとめ送信する。
- * 未ログインなら送信時に /login へ誘導。送信成功でカートをクリアし完了表示。
+ * 「購入リクエストへ進む」→購入者情報フォーム→ /api/cart-request へまとめ送信する。
+ * 未ログインなら /login へ誘導。送信成功でカートをクリアし完了表示。
  */
-export function CartDrawer({ loggedIn }: Props) {
+export function CartDrawer({ loggedIn, buyerDefaults }: Props) {
   const { items, updateQty, removeItem, clear } = useCart();
   const [open, setOpen] = useState(false);
+  // 明細ビュー→購入者情報フォームの2ステップ。
+  const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
   const [rejected, setRejected] = useState<string[]>([]);
@@ -30,6 +36,7 @@ export function CartDrawer({ loggedIn }: Props) {
       setSent(false);
       setError(null);
       setRejected([]);
+      setShowForm(false);
       setOpen(true);
     };
     window.addEventListener(CART_OPEN_EVENT, onOpen);
@@ -53,11 +60,19 @@ export function CartDrawer({ loggedIn }: Props) {
     window.location.href = `/login?redirect=${redirect}`;
   };
 
-  async function submit() {
+  // 「購入リクエストへ進む」→ ログイン確認して購入者情報フォームへ。
+  function proceedToForm() {
     if (!loggedIn) {
       redirectToLogin();
       return;
     }
+    if (items.length === 0) return;
+    setError(null);
+    setShowForm(true);
+  }
+
+  // 購入者情報フォームの確定 → API へ送信。
+  async function submitRequest(buyer: BuyerFormValue) {
     if (submitting || items.length === 0) return;
     setSubmitting(true);
     setError(null);
@@ -72,6 +87,7 @@ export function CartDrawer({ loggedIn }: Props) {
             variantId: it.variantId,
             qty: it.qty,
           })),
+          ...buyer,
         }),
       });
       if (!res.ok) {
@@ -79,7 +95,9 @@ export function CartDrawer({ loggedIn }: Props) {
           redirectToLogin();
           return;
         }
-        throw new Error(`status ${res.status}`);
+        // バリデーションエラー等はサーバーのメッセージを表示。
+        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(body?.message ?? `status ${res.status}`);
       }
       const json = (await res.json()) as { rejected?: string[] };
       // 在庫切れ等で除外された行（lineKey）のタイトルを控えてから clear。
@@ -89,8 +107,8 @@ export function CartDrawer({ loggedIn }: Props) {
       setRejected(rejectedTitles);
       clear();
       setSent(true);
-    } catch {
-      setError('送信に失敗しました。時間をおいて再度お試しください。');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '送信に失敗しました。時間をおいて再度お試しください。');
     } finally {
       setSubmitting(false);
     }
@@ -114,7 +132,9 @@ export function CartDrawer({ loggedIn }: Props) {
       >
         {/* ヘッダー */}
         <div className="flex items-center justify-between border-b border-hairline px-5 py-4">
-          <span className="text-[18px] font-semibold">カート</span>
+          <span className="text-[18px] font-semibold">
+            {sent ? 'カート' : showForm ? '購入者情報の入力' : 'カート'}
+          </span>
           <button
             type="button"
             onClick={() => setOpen(false)}
@@ -165,6 +185,13 @@ export function CartDrawer({ loggedIn }: Props) {
               閉じる
             </button>
           </div>
+        ) : showForm ? (
+          <BuyerInfoForm
+            defaults={buyerDefaults}
+            onBack={() => setShowForm(false)}
+            onSubmit={submitRequest}
+            submitting={submitting}
+          />
         ) : items.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
             <span className="flex h-14 w-14 items-center justify-center rounded-pill bg-surface-muted">
@@ -214,18 +241,13 @@ export function CartDrawer({ loggedIn }: Props) {
               <p className="mt-2 text-[12px] leading-relaxed text-ink-sub">
                 送信時点では支払いは発生しません。運営が在庫と引き渡し方法を確認のうえ、正式な金額をご連絡します。
               </p>
-              {error && <p className="mt-2 text-[13px] font-medium text-danger">{error}</p>}
+              {error && <p className="mt-2 text-[13px] font-medium text-red-600">{error}</p>}
               <button
                 type="button"
-                onClick={submit}
-                disabled={submitting}
-                className="mt-3 h-[50px] w-full rounded-btn bg-primary text-[16px] font-bold text-ink transition-colors hover:bg-primary-active disabled:opacity-60"
+                onClick={proceedToForm}
+                className="mt-3 h-[50px] w-full rounded-btn bg-primary text-[16px] font-bold text-ink transition-colors hover:bg-primary-active"
               >
-                {loggedIn
-                  ? submitting
-                    ? '送信中…'
-                    : '購入リクエストを送信'
-                  : 'ログインして送信'}
+                {loggedIn ? '購入リクエストへ進む' : 'ログインして進む'}
               </button>
             </div>
           </>

@@ -1,6 +1,7 @@
 ---
 import '@/styles/global.css';
 import { getSession } from '@/lib/server/session';
+import { getData } from '@/lib/server/data';
 import { isAdmin, canManageListings } from '@/lib/permissions';
 import UserAvatar from '@/components/UserAvatar.astro';
 import { CartButton } from '@/components/cart/CartButton';
@@ -16,6 +17,11 @@ interface Props {
 const { title, description, header = true } = Astro.props;
 const session = await getSession(Astro);
 const user = session.user;
+
+// 購入者情報フォームの初期値（ログイン済みのみ。profiles から氏名・会社名・メール）。
+const buyerDefaults = user
+  ? await getData(Astro.locals.runtime?.env).getBuyerProfile(user.id)
+  : null;
 
 const fullTitle = title ? `${title}｜伊那材木センター` : '伊那材木センター';
 const desc =
@@ -194,7 +200,7 @@ const desc =
     </script>
 
     {/* カートドロワー（全ページ共通・fixedオーバーレイ） */}
-    <CartDrawer loggedIn={Boolean(user)} client:load />
+    <CartDrawer loggedIn={Boolean(user)} buyerDefaults={buyerDefaults} client:load />
 
     <main>
       <slot />

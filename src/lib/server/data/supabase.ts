@@ -455,6 +455,25 @@ export function createSupabaseDataLayer(env?: RuntimeEnv): DataLayer {
       createdAt: row.created_at,
     } satisfies PurchaseRequest;
   },
+
+  async getBuyerProfile(userId) {
+    const { data } = await client
+      .from('profiles')
+      .select('display_name, company_name, contact_email')
+      .eq('id', userId)
+      .maybeSingle();
+    if (!data) return null;
+    const row = data as {
+      display_name: string | null;
+      company_name: string | null;
+      contact_email: string | null;
+    };
+    return {
+      displayName: row.display_name ?? '',
+      companyName: row.company_name ?? '',
+      contactEmail: row.contact_email ?? '',
+    };
+  },
   };
   return layer;
 }

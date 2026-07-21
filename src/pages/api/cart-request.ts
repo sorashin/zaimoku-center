@@ -1,7 +1,12 @@
 import type { APIRoute } from 'astro';
 import { getData } from '@/lib/server/data';
 import { getSession } from '@/lib/server/session';
-import { postCartRequestToWebhook } from '@/lib/server/cartRequestWebhook';
+import {
+  postCartRequestToWebhook,
+  type BuyerOrgType,
+  type DeliveryMethod,
+  type CartRequestWebhookPayload,
+} from '@/lib/server/cartRequestWebhook';
 import { estimateTotal, estimateVariantTotal, formatPrice, variantLabel } from '@/lib/format';
 import { cartLineKey } from '@/lib/cart/types';
 
@@ -13,6 +18,65 @@ interface ItemInput {
 }
 
 const MAX_ITEMS = 50;
+
+/** 検証済みの購入者情報（webhook にそのまま渡せる形）。 */
+type BuyerInfo = Pick<
+  CartRequestWebhookPayload,
+  'buyerName' | 'buyerEmail' | 'buyerOrgType' | 'buyerCompany' | 'deliveryMethod' | 'shippingAddress' | 'usage'
+>;
+
+function str(v: unknown): string {
+  return typeof v === 'string' ? v.trim() : '';
+}
+
+/**
+ * リクエストボディから購入者情報を検証・正規化する。
+ * 用途以外は必須。法人は会社名必須、配達希望は配送先（郵便番号・都道府県・市区町村）必須。
+ * 不備があれば error（フォーム表示用メッセージ）を返す。
+ */
+function parseBuyer(payload: Record<string, unknown>): { info?: BuyerInfo; error?: string } {
+  const buyerName = str(payload.buyerName);
+  if (!buyerName) return { error: 'お名前を入力してください。' };
+
+  const buyerEmail = str(payload.buyerEmail);
+  // 簡易メール検証（厳密さより誤送信防止）。
+  if (!buyerEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail)) {
+    return { error: 'メールアドレスを正しく入力してください。' };
+  }
+
+  const orgRaw = str(payload.buyerOrgType);
+  const buyerOrgType: BuyerOrgType = orgRaw === 'corporate' ? 'corporate' : 'individual';
+  let buyerCompany: string | undefined;
+  if (buyerOrgType === 'corporate') {
+    buyerCompany = str(payload.buyerCompany);
+    if (!buyerCompany) return { error: '会社名を入力してください。' };
+  }
+
+  const delRaw = str(payload.deliveryMethod);
+  if (delRaw !== 'pickup' && delRaw !== 'delivery') {
+    return { error: '受け取り方法を選択してください。' };
+  }
+  const deliveryMethod: DeliveryMethod = delRaw;
+
+  let shippingAddress: BuyerInfo['shippingAddress'];
+  if (deliveryMethod === 'delivery') {
+    const addr = (payload.shippingAddress ?? {}) as Record<string, unknown>;
+    const postalCode = str(addr.postalCode);
+    const prefecture = str(addr.prefecture);
+    const city = str(addr.city);
+    const rest = str(addr.rest);
+    if (!postalCode || !prefecture || !city) {
+      return { error: '配送先（郵便番号・都道府県・市区町村）を入力してください。' };
+    }
+    shippingAddress = { postalCode, prefecture, city, rest: rest || undefined };
+  }
+
+  const usage = str(payload.usage) || undefined;
+
+  return {
+    info: { buyerName, buyerEmail, buyerOrgType, buyerCompany, deliveryMethod, shippingAddress, usage },
+  };
+}
 
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -35,7 +99,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     return json({ error: 'unauthorized' }, 401);
   }
 
-  let payload: { items?: unknown; message?: unknown };
+  let payload: Record<string, unknown>;
   try {
     payload = await request.json();
   } catch {
@@ -48,6 +112,12 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
   }
   if (rawItems.length > MAX_ITEMS) {
     return json({ error: 'too_many_items' }, 400);
+  }
+
+  // 購入者情報（用途以外は必須。法人は会社名、配達は配送先が必須）。
+  const buyer = parseBuyer(payload);
+  if (!buyer.info) {
+    return json({ error: 'invalid_buyer', message: buyer.error }, 400);
   }
 
   // 行（listingId+variantId）の正規化（重複は最後の qty を採用）。
@@ -131,7 +201,8 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
   // GAS_WEBHOOK_URL 未設定ならスタブログのみ（リクエスト保存は成功扱い）。
   await postCartRequestToWebhook(
     {
-      buyerName: session.user.name,
+      // 氏名・メール等はフォーム入力（buyer.info）を正とする。buyerId はセッション。
+      ...buyer.info,
       buyerId: session.user.id,
       items: mailItems,
       grandTotal,

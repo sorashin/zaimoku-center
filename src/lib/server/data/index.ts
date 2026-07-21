@@ -7,6 +7,7 @@ export type {
   CreateListingInput,
   UpdateListingInput,
   CreatePurchaseRequestInput,
+  BuyerProfile,
 } from './types';
 
 /** ランタイム環境変数（Cloudflare runtime env / フォールバックで import.meta.env）。 */
