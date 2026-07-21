@@ -19,6 +19,16 @@ export type CreatePurchaseRequestInput = Omit<
   'id' | 'status' | 'createdAt'
 >;
 
+/** 購入者情報フォームの初期値に使う、profiles の軽量ビュー。 */
+export interface BuyerProfile {
+  /** 表示名（氏名の初期値） */
+  displayName: string;
+  /** 会社名（法人時の初期値。無ければ空） */
+  companyName: string;
+  /** 連絡先メール（自動返信の宛先初期値。無ければ空） */
+  contactEmail: string;
+}
+
 /** データ層の共通インターフェース（mock / supabase で実装を切り替え） */
 export interface DataLayer {
   getSellers(): Promise<Seller[]>;
@@ -41,4 +51,7 @@ export interface DataLayer {
   getFavoriteListings(userId: string): Promise<ListingWithSeller[]>;
 
   createPurchaseRequest(input: CreatePurchaseRequestInput): Promise<PurchaseRequest>;
+
+  /** 購入者情報フォームの初期値（profiles）。無ければ null。 */
+  getBuyerProfile(userId: string): Promise<BuyerProfile | null>;
 }

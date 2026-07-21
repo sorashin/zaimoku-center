@@ -186,4 +186,9 @@ export const mockDataLayer: DataLayer = {
     purchaseRequests.push(req);
     return req;
   },
+
+  // mock はプロフィール未管理。フォームはユーザー入力に任せる。
+  async getBuyerProfile() {
+    return null;
+  },
 };
