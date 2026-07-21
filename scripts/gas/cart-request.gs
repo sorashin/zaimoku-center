@@ -167,7 +167,7 @@ function sendBuyerMail_(props, body, items, requestId) {
   var to = body.buyerEmail;
   if (!to) return; // メール未入力なら送れない。
 
-  var siteName = props.getProperty('SITE_NAME') || '伊那材木センター';
+  var siteName = props.getProperty('SITE_NAME') || '伊那材木センター 渡場渡場';
   var lines = [];
   lines.push((body.buyerName || 'お客') + ' 様');
   lines.push('');

@@ -52,20 +52,33 @@ export function BuyerInfoForm({ defaults, onBack, onSubmit, submitting = false }
   const [rest, setRest] = useState('');
   const [usage, setUsage] = useState('');
   const [postalLooking, setPostalLooking] = useState(false);
+  const [postalNote, setPostalNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // 郵便番号が7桁になったら住所を自動補完（手動編集も可）。
-  async function onPostalChange(v: string) {
-    setPostal(v);
-    if (normalizePostalCode(v)) {
-      setPostalLooking(true);
-      const addr = await lookupPostalCode(v);
-      setPostalLooking(false);
-      if (addr) {
-        setPrefecture(addr.prefecture);
-        setCity(addr.city);
-      }
+  // 郵便番号から住所を引いて都道府県・市区町村を埋める（自動＝入力7桁時／手動＝ボタン）。
+  async function fillFromPostal(code: string) {
+    if (!normalizePostalCode(code)) {
+      setPostalNote('郵便番号は7桁の数字で入力してください。');
+      return;
     }
+    setPostalNote(null);
+    setPostalLooking(true);
+    const addr = await lookupPostalCode(code);
+    setPostalLooking(false);
+    if (addr) {
+      setPrefecture(addr.prefecture);
+      setCity(addr.city);
+      setPostalNote(null);
+    } else {
+      setPostalNote('該当する住所が見つかりませんでした。手入力してください。');
+    }
+  }
+
+  // 入力途中は住所検索しない。7桁そろったら自動補完（手入力も可）。
+  function onPostalChange(v: string) {
+    setPostal(v);
+    setPostalNote(null);
+    if (normalizePostalCode(v)) void fillFromPostal(v);
   }
 
   function validate(): BuyerFormValue | null {
@@ -197,28 +210,42 @@ export function BuyerInfoForm({ defaults, onBack, onSubmit, submitting = false }
                 郵便番号{reqMark}
                 {postalLooking && <span className="ml-2 text-[11px] text-ink-faint">住所を検索中…</span>}
               </label>
-              <input
-                className={inputCls}
-                value={postal}
-                inputMode="numeric"
-                onChange={(e) => onPostalChange(e.target.value)}
-                placeholder="3960304"
-              />
-              <p className="mt-1 text-[11px] text-ink-faint">7桁入力で都道府県・市区町村を自動入力します。</p>
+              <div className="flex gap-2">
+                <input
+                  className={inputCls}
+                  value={postal}
+                  inputMode="numeric"
+                  autoComplete="off"
+                  onChange={(e) => onPostalChange(e.target.value)}
+                  placeholder="1000001"
+                />
+                <button
+                  type="button"
+                  onClick={() => void fillFromPostal(postal)}
+                  disabled={postalLooking}
+                  className="whitespace-nowrap rounded-btn border border-ink bg-surface px-3 py-2.5 text-[13px] font-semibold text-ink transition-colors hover:bg-surface-muted disabled:opacity-60"
+                >
+                  住所を自動入力
+                </button>
+              </div>
+              <p className="mt-1 text-[11px] text-ink-faint">
+                7桁を入力するか「住所を自動入力」で都道府県・市区町村を補完します。
+              </p>
+              {postalNote && <p className="mt-1 text-[11px] font-medium text-red-600">{postalNote}</p>}
             </div>
             <div className="flex gap-2">
               <div className="w-[40%]">
                 <label className={labelCls}>都道府県{reqMark}</label>
-                <input className={inputCls} value={prefecture} onChange={(e) => setPrefecture(e.target.value)} placeholder="長野県" />
+                <input className={inputCls} value={prefecture} autoComplete="off" onChange={(e) => setPrefecture(e.target.value)} placeholder="東京都" />
               </div>
               <div className="flex-1">
                 <label className={labelCls}>市区町村{reqMark}</label>
-                <input className={inputCls} value={city} onChange={(e) => setCity(e.target.value)} placeholder="伊那市高遠町山室" />
+                <input className={inputCls} value={city} autoComplete="off" onChange={(e) => setCity(e.target.value)} placeholder="千代田区千代田" />
               </div>
             </div>
             <div>
               <label className={labelCls}>番地・建物名など</label>
-              <input className={inputCls} value={rest} onChange={(e) => setRest(e.target.value)} placeholder="22" />
+              <input className={inputCls} value={rest} autoComplete="off" onChange={(e) => setRest(e.target.value)} placeholder="1-1" />
             </div>
           </div>
         )}

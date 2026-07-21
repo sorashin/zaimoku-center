@@ -1,5 +1,6 @@
 // 郵便番号から住所（都道府県・市区町村）を引くクライアント用ユーティリティ。
-// zipcloud の公開 API（CORS 対応・無料）を使う。ネットワーク不通や該当なしは null。
+// zipcloud の公開 API（zip-cloud.appspot.com・CORS 対応・無料）を使う。
+// ネットワーク不通や該当なしは null。
 
 export interface PostalAddress {
   prefecture: string;
@@ -21,7 +22,7 @@ export async function lookupPostalCode(raw: string): Promise<PostalAddress | nul
   const code = normalizePostalCode(raw);
   if (!code) return null;
   try {
-    const res = await fetch(`https://zipcloud.appspot.com/api/search?zipcode=${code}`);
+    const res = await fetch(`https://zip-cloud.appspot.com/api/search?zipcode=${code}`);
     if (!res.ok) return null;
     const json = (await res.json()) as {
       results?: { address1: string; address2: string; address3: string }[] | null;
