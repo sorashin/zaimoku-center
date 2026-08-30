@@ -6,6 +6,7 @@ import tailwindcss from '@tailwindcss/vite';
 
 // https://astro.build/config
 export default defineConfig({
+  site: 'https://dobadoba.jp',
   output: 'server',
   adapter: cloudflare({
     // dev でも wrangler の platform proxy を通じて Astro.locals.runtime.env を利用可能にする。

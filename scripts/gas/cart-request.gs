@@ -1,5 +1,5 @@
 /**
- * 伊那材木センター — カートまとめ購入リクエスト受信用 Apps Script Web App。
+ * 伊那森林素材センター ドバドバ — カートまとめ購入リクエスト受信用 Apps Script Web App。
  *
  * 役割:
  *   1. サイト（/api/cart-request → postCartRequestToWebhook）からの POST を受け取る
@@ -124,7 +124,7 @@ function sendAdminMail_(props, body, items) {
   if (!to) return; // 宛先未設定なら送らない（蓄積だけ行う）。
 
   var lines = [];
-  lines.push('伊那材木センターに複数材のまとめ購入リクエストが届きました。');
+  lines.push('伊那森林素材センター ドバドバに複数材のまとめ購入リクエストが届きました。');
   lines.push('購入希望者と各出品者の間の調整をお願いします。');
   lines.push('');
   lines = lines.concat(buildItemLines_(body, items));
@@ -151,7 +151,7 @@ function sendAdminMail_(props, body, items) {
     lines.push(body.message);
   }
   lines.push('');
-  lines.push('— 伊那材木センター（自動送信）');
+  lines.push('— 伊那森林素材センター ドバドバ（自動送信）');
 
   var subject = '【まとめ購入リクエスト】' + (body.buyerName || '') + ' 様より ' + items.length + '件';
 
@@ -167,7 +167,7 @@ function sendBuyerMail_(props, body, items, requestId) {
   var to = body.buyerEmail;
   if (!to) return; // メール未入力なら送れない。
 
-  var siteName = props.getProperty('SITE_NAME') || '伊那材木センター 渡場渡場';
+  var siteName = props.getProperty('SITE_NAME') || '伊那森林素材センター ドバドバ';
   var lines = [];
   lines.push((body.buyerName || 'お客') + ' 様');
   lines.push('');

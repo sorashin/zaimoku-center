@@ -23,7 +23,9 @@ const buyerDefaults = user
   ? await getData(Astro.locals.runtime?.env).getBuyerProfile(user.id)
   : null;
 
-const fullTitle = title ? `${title}｜伊那材木センター` : '伊那材木センター';
+const SITE_NAME = '伊那森林素材センター ドバドバ';
+const fullTitle = title ? `${title}｜${SITE_NAME}` : SITE_NAME;
+const canonical = new URL(Astro.url.pathname, Astro.site ?? 'https://dobadoba.jp').toString();
 const desc =
   description ??
   '地域材・不採算木材を3Dスキャンで「一本ずつの価値」として可視化する、伊那谷の材木マーケットプレイス。';
@@ -36,7 +38,18 @@ const desc =
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={desc} />
     <title>{fullTitle}</title>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="canonical" href={canonical} />
+    <meta property="og:site_name" content={SITE_NAME} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={desc} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content={new URL('/icon-512.png', canonical).toString()} />
+    <meta name="twitter:card" content="summary" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
     <link
@@ -49,17 +62,15 @@ const desc =
       header && (
         <header class="sticky top-0 z-30 border-b border-hairline bg-surface/95 backdrop-blur">
           <div class="mx-auto flex max-w-[1440px] items-center gap-3 px-4 py-2.5 md:px-6">
-            <a href="/" class="flex items-center gap-2.5 no-underline">
-              {/* 丸太ロゴ（同心円・暖色） */}
-              <svg width="28" height="28" viewBox="0 0 30 30" aria-hidden="true">
-                <circle cx="15" cy="15" r="13" fill="#FF9F1C" />
-                <circle cx="15" cy="15" r="9" fill="none" stroke="#F18B00" stroke-width="1.6" />
-                <circle cx="15" cy="15" r="5" fill="none" stroke="#C76A00" stroke-width="1.4" />
-                <circle cx="15" cy="15" r="1.8" fill="#8a4f00" />
-              </svg>
-              <span class="text-[17px] font-bold tracking-[0.01em] text-ink">
-                伊那材木センター
-              </span>
+            <a href="/" class="flex items-center no-underline" aria-label={SITE_NAME}>
+              <img
+                src="/images/dobadoba_logo.svg"
+                alt={SITE_NAME}
+                width="804"
+                height="372"
+                class="h-9 w-auto md:h-10"
+                decoding="async"
+              />
             </a>
 
             <div class="ml-auto flex items-center gap-2">
